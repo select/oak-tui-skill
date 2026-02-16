@@ -131,6 +131,28 @@ export function saveRecentProject(projectPath: string): void {
 }
 
 /**
+ * Remove a project from the recent projects list
+ */
+export function removeRecentProject(projectPath: string): boolean {
+  try {
+    const projects = loadRecentProjects();
+    const initialLength = projects.length;
+    const filtered = projects.filter((p) => p.path !== projectPath);
+
+    if (filtered.length === initialLength) {
+      // Project was not found
+      return false;
+    }
+
+    writeFileSync(RECENT_PROJECTS_FILE, JSON.stringify(filtered, null, 2));
+    return true;
+  } catch (err) {
+    debug("Error removing recent project:", err);
+    return false;
+  }
+}
+
+/**
  * Build hierarchical project nodes from recent projects
  */
 export function buildProjectNodes(

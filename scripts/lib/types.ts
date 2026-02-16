@@ -53,7 +53,33 @@ export interface BackgroundPane {
   createdAt: number; // timestamp
 }
 
-export type TabId = "projects" | "files" | "themes";
+export type TabId = "projects" | "board" | "files" | "themes";
+
+// Beads issue types
+export type BeadsStatus = "open" | "in_progress" | "blocked" | "closed";
+export type BeadsType = "task" | "bug" | "feature" | "epic" | "chore";
+
+export interface BeadsIssue {
+  id: string;
+  title: string;
+  description?: string;
+  status: BeadsStatus;
+  priority: number; // 0-4
+  issue_type: BeadsType;
+  created_at: string;
+  updated_at: string;
+  dependency_count: number;
+  dependent_count: number;
+  assignee?: string;
+  labels?: string[];
+}
+
+export interface GroupedIssues {
+  blocked: BeadsIssue[];
+  ready: BeadsIssue[];
+  in_progress: BeadsIssue[];
+  closed: BeadsIssue[];
+}
 
 export interface Tab {
   id: TabId;

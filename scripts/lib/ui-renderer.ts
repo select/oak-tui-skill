@@ -171,7 +171,11 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: theme.colors.backgroundPanel,
-    padding: 1,
+    paddingLeft: 1,
+    paddingRight: 1,
+    paddingTop: 1,
+    paddingBottom: 1,
+    flexShrink: 0,
     gap: 2,
   });
   const titleText = new TextRenderable(renderer, {
@@ -197,7 +201,6 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     flexDirection: "column",
     paddingLeft: 1,
     paddingTop: 1,
-    paddingBottom: 1,
     gap: 1,
   });
 
@@ -273,6 +276,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     backgroundColor: theme.colors.backgroundPanel,
     flexDirection: "row",
     gap: 0,
+    flexShrink: 0,
   });
   // Keys in accent color, descriptions in muted
   const footerKey1 = new TextRenderable(renderer, {

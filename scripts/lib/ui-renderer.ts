@@ -162,7 +162,6 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     width: "100%",
     height: "100%",
     flexDirection: "column",
-    gap: 1,
     backgroundColor: theme.colors.background,
   });
 
@@ -202,6 +201,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     flexDirection: "column",
     paddingLeft: 1,
     paddingTop: 1,
+    marginTop: 1,
     gap: 1,
   });
 
@@ -215,7 +215,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     visible: false,
     backgroundColor: "#2d3748",
     paddingTop: 1,
-    paddingBottom: 1,
+    paddingBottom: 2,
   });
 
   // Colorful left border (1 char wide) - primary accent color
@@ -273,7 +273,9 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
   const footerBox = new BoxRenderable(renderer, {
     id: "footer-box",
     width: "100%",
-    padding: 1,
+    paddingLeft: 1,
+    paddingRight: 1,
+    paddingBottom: 1,
     backgroundColor: theme.colors.backgroundPanel,
     flexDirection: "row",
     gap: 0,

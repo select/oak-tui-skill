@@ -1,4 +1,10 @@
-import { BoxRenderable, TextRenderable, type CliRenderer } from "@opentui/core";
+import {
+  BoxRenderable,
+  TextRenderable,
+  MarkdownRenderable,
+  SyntaxStyle,
+  type CliRenderer,
+} from "@opentui/core";
 import type { BeadsIssue, Theme } from "../lib/types";
 import { getTypeColor } from "../lib/beads-manager";
 import { appendFileSync } from "node:fs";
@@ -195,16 +201,15 @@ export function renderIssuePopup(
     });
     parent.add(descLabel);
 
-    // Split description into lines
-    const descLines = issue.description.split("\n");
-    descLines.forEach((line, idx) => {
-      const lineText = new TextRenderable(renderer, {
-        id: `popup-desc-line-${renderCounter}-${idx}`,
-        content: line || " ",
-        fg: theme.colors.text,
-      });
-      parent.add(lineText);
+    // Use MarkdownRenderable for formatted description
+    const syntaxStyle = SyntaxStyle.create();
+    const descMarkdown = new MarkdownRenderable(renderer, {
+      id: `popup-desc-md-${renderCounter}`,
+      content: issue.description,
+      syntaxStyle: syntaxStyle,
+      conceal: true,
     });
+    parent.add(descMarkdown);
 
     // Spacer
     const spacer2 = new TextRenderable(renderer, {

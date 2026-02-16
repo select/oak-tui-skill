@@ -7,6 +7,7 @@ import {
 } from "@opentui/core";
 import { readdirSync, statSync, lstatSync } from "fs";
 import { join } from "path";
+import Fuse from "fuse.js";
 
 // File tree node interface
 export interface FileTreeNode {
@@ -147,53 +148,28 @@ export function ensureChildrenLoaded(
   return false;
 }
 
-// Fuzzy search function
+// Fuzzy search function using Fuse.js
 export function fuzzyMatch(
   pattern: string,
   str: string,
 ): { match: boolean; score: number } {
   if (!pattern) return { match: true, score: 0 };
 
-  const patternLower = pattern.toLowerCase();
-  const strLower = str.toLowerCase();
+  const fuse = new Fuse([{ name: str }], {
+    keys: ["name"],
+    threshold: 0.4,
+    ignoreLocation: true,
+    includeScore: true,
+  });
 
-  // Exact substring match gets highest score
-  if (strLower.includes(patternLower)) {
-    return { match: true, score: 100 - strLower.indexOf(patternLower) };
+  const results = fuse.search(pattern);
+  if (results.length > 0) {
+    // Convert Fuse score (0 = perfect, 1 = no match) to our score (higher = better)
+    const score = Math.round((1 - (results[0].score || 0)) * 100);
+    return { match: true, score };
   }
 
-  // Fuzzy match - all pattern chars must appear in order
-  let patternIdx = 0;
-  let score = 0;
-  let lastMatchIdx = -1;
-
-  for (
-    let i = 0;
-    i < strLower.length && patternIdx < patternLower.length;
-    i++
-  ) {
-    if (strLower[i] === patternLower[patternIdx]) {
-      // Consecutive matches score higher
-      if (lastMatchIdx === i - 1) score += 10;
-      else score += 1;
-      // Match at start scores higher
-      if (i === 0) score += 20;
-      // Match after separator scores higher
-      if (
-        i > 0 &&
-        (str[i - 1] === "/" ||
-          str[i - 1] === "-" ||
-          str[i - 1] === "_" ||
-          str[i - 1] === ".")
-      )
-        score += 15;
-
-      lastMatchIdx = i;
-      patternIdx++;
-    }
-  }
-
-  return { match: patternIdx === patternLower.length, score };
+  return { match: false, score: 0 };
 }
 
 // Filter file tree based on search pattern

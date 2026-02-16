@@ -198,10 +198,11 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
   const searchBoxOuter = new BoxRenderable(renderer, {
     id: "search-box-outer",
     width: "100%",
-    padding: 1,
+    paddingLeft: 1,
+    paddingRight: 1,
     flexDirection: "row",
     visible: false,
-    backgroundColor: theme.colors.backgroundPanel,
+    backgroundColor: "#1e1e1e",
   });
 
   // Colorful left border (1 char wide) - primary accent color
@@ -211,13 +212,13 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     backgroundColor: theme.colors.primary,
   });
 
-  // Search box with panel background (lighter than main bg)
+  // Search box with lighter background
   const searchBox = new BoxRenderable(renderer, {
     id: "search-box",
     flexGrow: 1,
     flexDirection: "row",
     gap: 0,
-    backgroundColor: theme.colors.backgroundPanel,
+    backgroundColor: "#1e1e1e",
     paddingLeft: 1,
     paddingRight: 1,
   });

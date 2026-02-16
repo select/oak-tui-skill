@@ -419,13 +419,13 @@ export function renderProjects(
       onMouseOver: () => {
         if (!projectIsSelected) {
           projectHeader.backgroundColor = "#3a3a3a";
-          renderer.requestRender();
+          setTimeout(() => renderer.requestRender(), 0);
         }
       },
       onMouseOut: () => {
         if (!projectIsSelected) {
           projectHeader.backgroundColor = undefined;
-          renderer.requestRender();
+          setTimeout(() => renderer.requestRender(), 0);
         }
       },
     });
@@ -469,13 +469,13 @@ export function renderProjects(
           onMouseOver: () => {
             if (!wtIsSelected) {
               wtBox.backgroundColor = "#3a3a3a";
-              renderer.requestRender();
+              setTimeout(() => renderer.requestRender(), 0);
             }
           },
           onMouseOut: () => {
             if (!wtIsSelected) {
               wtBox.backgroundColor = undefined;
-              renderer.requestRender();
+              setTimeout(() => renderer.requestRender(), 0);
             }
           },
         });
@@ -627,13 +627,13 @@ export function renderFiles(
       onMouseOver: () => {
         if (!isSelected) {
           fileBox.backgroundColor = "#3a3a3a";
-          renderer.requestRender();
+          setTimeout(() => renderer.requestRender(), 0);
         }
       },
       onMouseOut: () => {
         if (!isSelected) {
           fileBox.backgroundColor = undefined;
-          renderer.requestRender();
+          setTimeout(() => renderer.requestRender(), 0);
         }
       },
     });
@@ -831,15 +831,15 @@ export function renderBoard(
       issueBox.add(badgeLine);
       issueBox.add(titleText);
 
-      // Mouse handlers
+      // Mouse handlers - defer render to avoid crashes during mouse selection
       issueBox.onMouseOver = () => {
         issueBox.backgroundColor = "#3a3a3a";
-        renderer.requestRender();
+        setTimeout(() => renderer.requestRender(), 0);
       };
 
       issueBox.onMouseOut = () => {
         issueBox.backgroundColor = isSelected ? "#3a3a3a" : undefined;
-        renderer.requestRender();
+        setTimeout(() => renderer.requestRender(), 0);
       };
 
       issueBox.onMouseDown = (event) => {

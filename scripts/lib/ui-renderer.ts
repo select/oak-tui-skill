@@ -202,9 +202,9 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     paddingRight: 1,
     flexDirection: "row",
     visible: false,
-    backgroundColor: "#3a3a3a",
+    backgroundColor: "#2d3748",
     paddingTop: 1,
-    marginTop: "auto",
+    paddingBottom: 1,
   });
 
   // Colorful left border (1 char wide) - primary accent color
@@ -220,7 +220,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     flexGrow: 1,
     flexDirection: "row",
     gap: 0,
-    backgroundColor: "#3a3a3a",
+    backgroundColor: "#2d3748",
     paddingLeft: 1,
     paddingRight: 1,
   });
@@ -255,7 +255,6 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     scrollY: true,
   });
   contentBox.add(contentScroll);
-  contentBox.add(searchBoxOuter);
 
   const footerBox = new BoxRenderable(renderer, {
     id: "footer-box",
@@ -318,6 +317,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
   titleBox.add(tabBar);
   root.add(titleBox);
   root.add(contentBox);
+  root.add(searchBoxOuter);
   root.add(footerBox);
 
   return {

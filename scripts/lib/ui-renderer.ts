@@ -775,11 +775,11 @@ export function renderBoard(
         overflow: "hidden",
       });
 
-      // Left side: Type badge (colored block)
-      const typeBadge = new BoxRenderable(renderer, {
+      // Left side: Type badge (colored dot)
+      const typeBadge = new TextRenderable(renderer, {
         id: `board-type-${renderCounter}-${flatIndex}`,
-        backgroundColor: getTypeColor(issue.issue_type),
-        width: 1,
+        content: "●",
+        fg: getTypeColor(issue.issue_type),
       });
 
       // Right side: Issue ID + Priority icon

@@ -200,7 +200,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     width: "100%",
     height: 1,
     marginLeft: 1,
-    marginBottom: 1,
+    marginTop: 1,
     flexDirection: "row",
     visible: false,
   });
@@ -218,7 +218,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     flexGrow: 1,
     flexDirection: "row",
     gap: 0,
-    backgroundColor: "#1a1a1a", // Light background
+    backgroundColor: "#2a2a2a", // Lighter than main background
     paddingLeft: 1,
     paddingRight: 1,
   });
@@ -252,8 +252,8 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     paddingLeft: 1,
     scrollY: true,
   });
-  contentBox.add(searchBoxOuter);
   contentBox.add(contentScroll);
+  contentBox.add(searchBoxOuter);
 
   const footerBox = new BoxRenderable(renderer, {
     id: "footer-box",

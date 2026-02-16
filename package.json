@@ -1,0 +1,12 @@
+{
+  "name": "git-worktree-manager",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run scripts/worktree-tui.ts",
+    "dev": "bun run --watch scripts/worktree-tui.ts"
+  },
+  "dependencies": {
+    "@opentui/core": "latest"
+  }
+}

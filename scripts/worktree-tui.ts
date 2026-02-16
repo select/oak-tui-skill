@@ -420,12 +420,6 @@ async function main() {
           issuePopupState,
           currentTheme(),
           renderCounter,
-          () => {
-            issuePopupState.visible = false;
-            issuePopupState.issue = null;
-            issuePopupState.scrollOffset = 0;
-            updateContent();
-          },
         );
       } else {
         renderBoard(
@@ -436,7 +430,14 @@ async function main() {
           selectedIndex,
           (issue) => {
             debug("Selected issue:", issue.id);
-            // TODO: Show issue details or open in editor
+          },
+          (issue) => {
+            // Double-click opens popup
+            debug("Opening issue popup:", issue.id);
+            issuePopupState.visible = true;
+            issuePopupState.issue = issue;
+            issuePopupState.scrollOffset = 0;
+            updateContent();
           },
         );
       }
@@ -459,6 +460,14 @@ async function main() {
           selectedIndex,
           (issue) => {
             debug("Selected issue:", issue.id);
+          },
+          (issue) => {
+            // Double-click opens popup
+            debug("Opening issue popup:", issue.id);
+            issuePopupState.visible = true;
+            issuePopupState.issue = issue;
+            issuePopupState.scrollOffset = 0;
+            updateContent();
           },
         );
         renderer.requestRender();

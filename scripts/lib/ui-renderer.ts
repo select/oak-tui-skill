@@ -195,7 +195,9 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     width: "100%",
     flexGrow: 1,
     flexDirection: "column",
-    padding: 1,
+    paddingLeft: 1,
+    paddingTop: 1,
+    paddingBottom: 1,
     gap: 1,
   });
 
@@ -258,6 +260,9 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     flexGrow: 1,
     paddingLeft: 1,
     scrollY: true,
+    verticalScrollbarOptions: {
+      paddingLeft: 1,
+    },
   });
   contentBox.add(contentScroll);
 

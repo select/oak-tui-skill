@@ -149,6 +149,25 @@ export function hasBackgroundPane(worktreePath: string): boolean {
 }
 
 /**
+ * Get the current worktree path (from the active left pane)
+ */
+export function getCurrentWorktreePath(): string | null {
+  const leftPaneId = getLeftPaneId();
+  if (!leftPaneId) return null;
+
+  try {
+    const paneCwd = execSync(
+      `tmux display-message -p -t ${leftPaneId} '#{pane_current_path}'`,
+      { encoding: "utf-8" },
+    ).trim();
+    debug("Current worktree path:", paneCwd);
+    return paneCwd;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Get background pane for a worktree
  */
 export function getBackgroundPane(
@@ -204,6 +223,16 @@ export function switchToWorktree(
       { encoding: "utf-8" },
     ).trim();
 
+    debug("Left pane cwd before move:", paneCwd);
+
+    // Capture oak pane width BEFORE any operations so we can restore it
+    const oakPane = oakPaneId || getTmuxPaneId();
+    const oakPaneWidth = execSync(
+      `tmux display-message -p -t ${oakPane} '#{pane_width}'`,
+      { encoding: "utf-8" },
+    ).trim();
+    debug("Oak pane width before switch:", oakPaneWidth);
+
     // Ensure background session exists (detached)
     ensureBackgroundSession();
 
@@ -236,6 +265,10 @@ export function switchToWorktree(
     // break-pane preserves the pane ID, so use leftPaneId directly
     // (no need to query oak-bg which could return wrong pane if multiple exist)
     const bgPaneId = leftPaneId;
+
+    // Restore oak pane width after the switch
+    execSync(`tmux resize-pane -t ${oakPane} -x ${oakPaneWidth}`);
+    debug("Restored oak pane width to:", oakPaneWidth);
 
     // Track the backgrounded pane by its ORIGINAL cwd (where it came from)
     // The green dot will appear next to the worktree matching this path
@@ -345,12 +378,19 @@ function recoverBackgroundPane(
       debug("Current left pane cwd:", paneCwd);
       debug("Current left pane width:", paneWidth);
 
+      // Capture oak pane width BEFORE any operations so we can restore it
+      const oakPane = oakPaneId || getTmuxPaneId();
+      const oakPaneWidth = execSync(
+        `tmux display-message -p -t ${oakPane} '#{pane_width}'`,
+        { encoding: "utf-8" },
+      ).trim();
+      debug("Oak pane width before recover:", oakPaneWidth);
+
       // Ensure background session exists
       ensureBackgroundSession();
 
       // First, bring the recovered pane back using join-pane
       // This joins the background pane to the left of the oak pane
-      const oakPane = oakPaneId || getTmuxPaneId();
       execSync(
         `tmux join-pane -h -b -l ${paneWidth} -t ${oakPane} -s ${bgPane.paneId}`,
       );
@@ -362,6 +402,10 @@ function recoverBackgroundPane(
       // Note: break-pane preserves the pane ID, so we use currentLeftPaneId
       execSync(`tmux break-pane -d -s ${currentLeftPaneId} -t oak-bg:`);
       execSync("sleep 0.1");
+
+      // Restore oak pane width after the switch
+      execSync(`tmux resize-pane -t ${oakPane} -x ${oakPaneWidth}`);
+      debug("Restored oak pane width to:", oakPaneWidth);
 
       // The pane ID is preserved after break-pane
       const newBgPaneId = currentLeftPaneId;

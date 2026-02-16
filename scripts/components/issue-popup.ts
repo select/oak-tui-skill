@@ -165,7 +165,7 @@ export function renderIssuePopup(
   const titleText = new TextRenderable(renderer, {
     id: `popup-title-${renderCounter}`,
     content: issue.title,
-    fg: theme.colors.text,
+    fg: theme.colors.textMuted,
   });
   parent.add(titleText);
 
@@ -181,7 +181,7 @@ export function renderIssuePopup(
   const metaLine = new TextRenderable(renderer, {
     id: `popup-meta-${renderCounter}`,
     content: `Status: ${STATUS_LABELS[issue.status] || issue.status}  │  Priority: ${PRIORITY_LABELS[issue.priority] || issue.priority}  │  Type: ${capitalizeFirst(issue.issue_type)}${issue.assignee ? `  │  Assignee: ${issue.assignee}` : ""}`,
-    fg: theme.colors.text,
+    fg: theme.colors.textMuted,
   });
   parent.add(metaLine);
 
@@ -202,29 +202,16 @@ export function renderIssuePopup(
     });
     parent.add(descLabel);
 
-    // Use MarkdownRenderable for formatted description with dimmed text
-    const dimmedTextColor = RGBA.fromHex(theme.colors.textMuted);
-    const syntaxStyle = SyntaxStyle.fromStyles({
-      text: { fg: dimmedTextColor },
-      paragraph: { fg: dimmedTextColor },
-      heading: { fg: RGBA.fromHex(theme.colors.text), bold: true },
-      "heading.1": { fg: RGBA.fromHex(theme.colors.primary), bold: true },
-      "heading.2": { fg: RGBA.fromHex(theme.colors.text), bold: true },
-      strong: { fg: RGBA.fromHex(theme.colors.text), bold: true },
-      emphasis: { fg: dimmedTextColor, italic: true },
-      "code.inline": { fg: RGBA.fromHex(theme.colors.primary) },
-      "code.block": { fg: dimmedTextColor },
-      link: { fg: RGBA.fromHex(theme.colors.info), underline: true },
-      list: { fg: dimmedTextColor },
-      "list.marker": { fg: RGBA.fromHex(theme.colors.primary) },
+    // Render description lines with dimmed text color
+    const descLines = issue.description.split("\n");
+    descLines.forEach((line, idx) => {
+      const descLine = new TextRenderable(renderer, {
+        id: `popup-desc-line-${renderCounter}-${idx}`,
+        content: line || " ",
+        fg: theme.colors.textMuted,
+      });
+      parent.add(descLine);
     });
-    const descMarkdown = new MarkdownRenderable(renderer, {
-      id: `popup-desc-md-${renderCounter}`,
-      content: issue.description,
-      syntaxStyle: syntaxStyle,
-      conceal: true,
-    });
-    parent.add(descMarkdown);
 
     // Spacer
     const spacer2 = new TextRenderable(renderer, {

@@ -363,11 +363,13 @@ async function main() {
         selectedIndex,
       );
     } else if (activeTab === "files") {
-      // Show search box
-      ui.searchBoxOuter.visible = true;
-      ui.searchInput.content = searchQuery;
-      ui.searchPlaceholder.visible = searchQuery.length === 0;
-      ui.searchCursor.visible = searchMode;
+      // Show search box only when in search mode
+      if (searchMode || searchQuery) {
+        ui.searchBoxOuter.visible = true;
+        ui.searchInput.content = searchQuery;
+        ui.searchPlaceholder.visible = searchQuery.length === 0;
+        ui.searchCursor.visible = searchMode;
+      }
 
       renderFiles(
         renderer,

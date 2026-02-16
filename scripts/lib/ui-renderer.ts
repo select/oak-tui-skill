@@ -198,8 +198,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
   const searchBoxOuter = new BoxRenderable(renderer, {
     id: "search-box-outer",
     width: "100%",
-    height: 1,
-    marginTop: 1,
+    padding: 1,
     flexDirection: "row",
     visible: false,
   });
@@ -211,13 +210,13 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     backgroundColor: theme.colors.primary,
   });
 
-  // Search box with subtle dark background
+  // Search box with panel background (lighter than main bg)
   const searchBox = new BoxRenderable(renderer, {
     id: "search-box",
     flexGrow: 1,
     flexDirection: "row",
     gap: 0,
-    backgroundColor: "#1a1a2e", // Subtle dark with slight blue tint
+    backgroundColor: theme.colors.backgroundPanel,
     paddingLeft: 1,
     paddingRight: 1,
   });

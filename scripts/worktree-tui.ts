@@ -3,6 +3,7 @@ import {
   createCliRenderer,
   BoxRenderable,
   TextRenderable,
+  createTextAttributes,
 } from "@opentui/core";
 import { basename } from "node:path";
 import type { TabId } from "./lib/types";
@@ -254,7 +255,8 @@ async function main() {
         activeTab === tab.id
           ? currentTheme().colors.primary
           : currentTheme().colors.textMuted,
-      bold: activeTab === tab.id,
+      attributes:
+        activeTab === tab.id ? createTextAttributes({ bold: true }) : 0,
     });
     tabBox.add(tabText);
     tabBox.onMouse = (event) => {
@@ -348,7 +350,8 @@ async function main() {
       if (tabText) {
         (tabText as TextRenderable).fg =
           activeTab === tab.id ? "#fab283" : "#808080";
-        (tabText as TextRenderable).bold = activeTab === tab.id;
+        (tabText as TextRenderable).attributes =
+          activeTab === tab.id ? createTextAttributes({ bold: true }) : 0;
       }
     });
 
@@ -501,7 +504,7 @@ async function main() {
   }
 
   // Keyboard handler
-  renderer.keyInput.on("keypress", (key) => {
+  (renderer.keyInput as any).on("keypress", (key: any) => {
     const keyName = key.name;
     debug(`Key pressed: ${keyName}`);
 

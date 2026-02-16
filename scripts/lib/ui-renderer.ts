@@ -4,6 +4,7 @@ import {
   TextRenderable,
   type CliRenderer,
 } from "@opentui/core";
+import Fuse from "fuse.js";
 import type { ProjectNode, Theme, GroupedIssues, BeadsIssue } from "./types";
 import type { FileTreeNode } from "../components/file-tree";
 import {
@@ -89,36 +90,39 @@ export function getFileAtIndex(
   return flatFiles[index] || null;
 }
 
-// Filter projects by search query (matches project name or worktree branches)
+// Filter projects by search query using fuzzy search
 export function filterProjects(
   projectNodes: ProjectNode[],
   searchQuery: string,
 ): ProjectNode[] {
   if (!searchQuery) return projectNodes;
-  const query = searchQuery.toLowerCase();
-  return projectNodes.filter((project) => {
-    // Match project name
-    if (project.name.toLowerCase().includes(query)) return true;
-    // Match any worktree branch
-    return project.worktrees.some((wt) =>
-      wt.branch.toLowerCase().includes(query),
-    );
+  const fuse = new Fuse(projectNodes, {
+    keys: ["name", "worktrees.branch"],
+    threshold: 0.4,
+    ignoreLocation: true,
   });
+  // Auto-expand matching projects to show worktrees
+  return fuse.search(searchQuery).map((result) => ({
+    ...result.item,
+    isExpanded: true,
+  }));
 }
 
-// Filter board issues by search query (matches title or id)
+// Filter board issues by search query using fuzzy search
 export function filterBoardIssues(
   grouped: GroupedIssues,
   searchQuery: string,
 ): GroupedIssues {
   if (!searchQuery) return grouped;
-  const query = searchQuery.toLowerCase();
-  const filterIssues = (issues: BeadsIssue[]) =>
-    issues.filter(
-      (issue) =>
-        issue.title.toLowerCase().includes(query) ||
-        issue.id.toLowerCase().includes(query),
-    );
+  const filterIssues = (issues: BeadsIssue[]) => {
+    if (issues.length === 0) return [];
+    const fuse = new Fuse(issues, {
+      keys: ["title", "id"],
+      threshold: 0.4,
+      ignoreLocation: true,
+    });
+    return fuse.search(searchQuery).map((result) => result.item);
+  };
   return {
     in_progress: filterIssues(grouped.in_progress),
     ready: filterIssues(grouped.ready),

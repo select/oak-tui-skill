@@ -704,6 +704,10 @@ const BOARD_SECTIONS: { key: keyof GroupedIssues; label: string }[] = [
   { key: "closed", label: "Closed" },
 ];
 
+// Track last click for double-click detection
+let lastClickTime = 0;
+let lastClickIssueId = "";
+
 export function renderBoard(
   renderer: CliRenderer,
   contentScroll: ScrollBoxRenderable,
@@ -711,6 +715,7 @@ export function renderBoard(
   renderCounter: number,
   selectedIndex: number,
   onSelectIssue: (issue: BeadsIssue) => void,
+  onOpenIssue?: (issue: BeadsIssue) => void,
 ): void {
   let flatIndex = 0;
 
@@ -825,7 +830,18 @@ export function renderBoard(
 
       issueBox.onMouseDown = (event) => {
         event.stopPropagation();
-        onSelectIssue(issue);
+        const now = Date.now();
+        const isDoubleClick =
+          now - lastClickTime < 400 && lastClickIssueId === issue.id;
+
+        if (isDoubleClick && onOpenIssue) {
+          onOpenIssue(issue);
+        } else {
+          onSelectIssue(issue);
+        }
+
+        lastClickTime = now;
+        lastClickIssueId = issue.id;
       };
 
       sectionBox.add(issueBox);

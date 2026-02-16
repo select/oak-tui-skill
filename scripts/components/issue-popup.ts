@@ -1,9 +1,4 @@
-import {
-  BoxRenderable,
-  TextRenderable,
-  ScrollBoxRenderable,
-  type CliRenderer,
-} from "@opentui/core";
+import { BoxRenderable, TextRenderable, type CliRenderer } from "@opentui/core";
 import type { BeadsIssue, Theme } from "../lib/types";
 import { getTypeColor } from "../lib/beads-manager";
 
@@ -81,76 +76,40 @@ function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+/**
+ * Renders issue details directly into the parent container.
+ * This replaces the board content when the popup is visible.
+ */
 export function renderIssuePopup(
   renderer: CliRenderer,
   parent: BoxRenderable,
   state: IssuePopupState,
   theme: Theme,
   renderCounter: number,
-  onClose: () => void,
 ): void {
   if (!state.visible || !state.issue) return;
 
   const issue = state.issue;
   const typeColor = getTypeColor(issue.issue_type);
 
-  // Overlay background (semi-transparent effect via darker color)
-  const overlay = new BoxRenderable(renderer, {
-    id: `popup-overlay-${renderCounter}`,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "#000000",
-    onMouseDown: onClose,
-  });
-  parent.add(overlay);
-
-  // Popup container - centered
-  const popup = new BoxRenderable(renderer, {
-    id: `popup-container-${renderCounter}`,
-    width: "80%",
-    height: "80%",
-    backgroundColor: theme.colors.backgroundPanel,
-    border: true,
-    borderStyle: "rounded",
-    borderColor: theme.colors.primary,
-    flexDirection: "column",
-    position: "absolute",
-    top: "10%",
-    left: "10%",
-  });
-  overlay.add(popup);
-
-  // Header with type color bar
+  // Header with type color bar and title
   const header = new BoxRenderable(renderer, {
     id: `popup-header-${renderCounter}`,
     width: "100%",
-    height: 3,
-    backgroundColor: theme.colors.backgroundPanel,
     flexDirection: "row",
     alignItems: "center",
-    flexShrink: 0,
+    gap: 1,
   });
-  popup.add(header);
+  parent.add(header);
 
   // Type color indicator
   const typeIndicator = new BoxRenderable(renderer, {
     id: `popup-type-indicator-${renderCounter}`,
     width: 2,
-    height: "100%",
+    height: 1,
     backgroundColor: typeColor,
   });
   header.add(typeIndicator);
-
-  // Title area
-  const titleArea = new BoxRenderable(renderer, {
-    id: `popup-title-area-${renderCounter}`,
-    flexGrow: 1,
-    height: "100%",
-    paddingLeft: 1,
-    flexDirection: "column",
-    justifyContent: "center",
-  });
-  header.add(titleArea);
 
   // Issue ID
   const idText = new TextRenderable(renderer, {
@@ -158,7 +117,7 @@ export function renderIssuePopup(
     content: issue.id,
     fg: theme.colors.textMuted,
   });
-  titleArea.add(idText);
+  header.add(idText);
 
   // Issue title
   const titleText = new TextRenderable(renderer, {
@@ -166,86 +125,31 @@ export function renderIssuePopup(
     content: issue.title,
     fg: theme.colors.text,
   });
-  titleArea.add(titleText);
+  parent.add(titleText);
 
-  // Close button
-  const closeBtn = new BoxRenderable(renderer, {
-    id: `popup-close-btn-${renderCounter}`,
-    width: 5,
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    onMouseDown: onClose,
+  // Separator
+  const sep1 = new TextRenderable(renderer, {
+    id: `popup-sep1-${renderCounter}`,
+    content: "─".repeat(60),
+    fg: theme.colors.border,
   });
-  header.add(closeBtn);
+  parent.add(sep1);
 
-  const closeBtnText = new TextRenderable(renderer, {
-    id: `popup-close-text-${renderCounter}`,
-    content: "[X]",
-    fg: theme.colors.textMuted,
-  });
-  closeBtn.add(closeBtnText);
-
-  // Metadata bar
-  const metaBar = new BoxRenderable(renderer, {
-    id: `popup-meta-bar-${renderCounter}`,
-    width: "100%",
-    height: 1,
-    backgroundColor: theme.colors.background,
-    flexDirection: "row",
-    paddingLeft: 1,
-    paddingRight: 1,
-    gap: 2,
-    flexShrink: 0,
-  });
-  popup.add(metaBar);
-
-  // Status
-  const statusText = new TextRenderable(renderer, {
-    id: `popup-status-${renderCounter}`,
-    content: `Status: ${STATUS_LABELS[issue.status] || issue.status}`,
+  // Metadata line
+  const metaLine = new TextRenderable(renderer, {
+    id: `popup-meta-${renderCounter}`,
+    content: `Status: ${STATUS_LABELS[issue.status] || issue.status}  │  Priority: ${PRIORITY_LABELS[issue.priority] || issue.priority}  │  Type: ${capitalizeFirst(issue.issue_type)}${issue.assignee ? `  │  Assignee: ${issue.assignee}` : ""}`,
     fg: theme.colors.text,
   });
-  metaBar.add(statusText);
+  parent.add(metaLine);
 
-  // Priority
-  const priorityText = new TextRenderable(renderer, {
-    id: `popup-priority-${renderCounter}`,
-    content: `Priority: ${PRIORITY_LABELS[issue.priority] || issue.priority}`,
+  // Empty line
+  const spacer1 = new TextRenderable(renderer, {
+    id: `popup-spacer1-${renderCounter}`,
+    content: " ",
     fg: theme.colors.text,
   });
-  metaBar.add(priorityText);
-
-  // Type
-  const typeText = new TextRenderable(renderer, {
-    id: `popup-type-${renderCounter}`,
-    content: `Type: ${capitalizeFirst(issue.issue_type)}`,
-    fg: typeColor,
-  });
-  metaBar.add(typeText);
-
-  // Assignee if present
-  if (issue.assignee) {
-    const assigneeText = new TextRenderable(renderer, {
-      id: `popup-assignee-${renderCounter}`,
-      content: `Assignee: ${issue.assignee}`,
-      fg: theme.colors.text,
-    });
-    metaBar.add(assigneeText);
-  }
-
-  // Content area (scrollable)
-  const contentScroll = new ScrollBoxRenderable(renderer, {
-    id: `popup-content-scroll-${renderCounter}`,
-    width: "100%",
-    flexGrow: 1,
-    flexDirection: "column",
-    paddingLeft: 1,
-    paddingRight: 1,
-    paddingTop: 1,
-    scrollY: true,
-  });
-  popup.add(contentScroll);
+  parent.add(spacer1);
 
   // Description section
   if (issue.description) {
@@ -254,26 +158,26 @@ export function renderIssuePopup(
       content: "Description",
       fg: theme.colors.primary,
     });
-    contentScroll.add(descLabel);
+    parent.add(descLabel);
 
-    // Split description into lines for proper rendering
+    // Split description into lines
     const descLines = issue.description.split("\n");
     descLines.forEach((line, idx) => {
       const lineText = new TextRenderable(renderer, {
         id: `popup-desc-line-${renderCounter}-${idx}`,
-        content: line || " ", // Empty line placeholder
+        content: line || " ",
         fg: theme.colors.text,
       });
-      contentScroll.add(lineText);
+      parent.add(lineText);
     });
 
     // Spacer
-    const spacer = new BoxRenderable(renderer, {
-      id: `popup-spacer-1-${renderCounter}`,
-      width: "100%",
-      height: 1,
+    const spacer2 = new TextRenderable(renderer, {
+      id: `popup-spacer2-${renderCounter}`,
+      content: " ",
+      fg: theme.colors.text,
     });
-    contentScroll.add(spacer);
+    parent.add(spacer2);
   }
 
   // Dependencies section
@@ -283,7 +187,7 @@ export function renderIssuePopup(
       content: "Dependencies",
       fg: theme.colors.primary,
     });
-    contentScroll.add(depsLabel);
+    parent.add(depsLabel);
 
     if (issue.dependency_count > 0) {
       const blockedByText = new TextRenderable(renderer, {
@@ -291,7 +195,7 @@ export function renderIssuePopup(
         content: `  Blocked by: ${issue.dependency_count} issue(s)`,
         fg: theme.colors.warning,
       });
-      contentScroll.add(blockedByText);
+      parent.add(blockedByText);
     }
 
     if (issue.dependent_count > 0) {
@@ -300,16 +204,16 @@ export function renderIssuePopup(
         content: `  Blocks: ${issue.dependent_count} issue(s)`,
         fg: theme.colors.info,
       });
-      contentScroll.add(blocksText);
+      parent.add(blocksText);
     }
 
     // Spacer
-    const spacer2 = new BoxRenderable(renderer, {
-      id: `popup-spacer-2-${renderCounter}`,
-      width: "100%",
-      height: 1,
+    const spacer3 = new TextRenderable(renderer, {
+      id: `popup-spacer3-${renderCounter}`,
+      content: " ",
+      fg: theme.colors.text,
     });
-    contentScroll.add(spacer2);
+    parent.add(spacer3);
   }
 
   // Labels section
@@ -319,57 +223,45 @@ export function renderIssuePopup(
       content: "Labels",
       fg: theme.colors.primary,
     });
-    contentScroll.add(labelsLabel);
+    parent.add(labelsLabel);
 
     const labelsText = new TextRenderable(renderer, {
       id: `popup-labels-text-${renderCounter}`,
       content: `  ${issue.labels.join(", ")}`,
       fg: theme.colors.text,
     });
-    contentScroll.add(labelsText);
+    parent.add(labelsText);
 
     // Spacer
-    const spacer3 = new BoxRenderable(renderer, {
-      id: `popup-spacer-3-${renderCounter}`,
-      width: "100%",
-      height: 1,
+    const spacer4 = new TextRenderable(renderer, {
+      id: `popup-spacer4-${renderCounter}`,
+      content: " ",
+      fg: theme.colors.text,
     });
-    contentScroll.add(spacer3);
+    parent.add(spacer4);
   }
 
-  // Footer with timestamps
-  const footer = new BoxRenderable(renderer, {
-    id: `popup-footer-${renderCounter}`,
-    width: "100%",
-    height: 1,
-    backgroundColor: theme.colors.background,
-    flexDirection: "row",
-    paddingLeft: 1,
-    paddingRight: 1,
-    gap: 2,
-    flexShrink: 0,
+  // Separator
+  const sep2 = new TextRenderable(renderer, {
+    id: `popup-sep2-${renderCounter}`,
+    content: "─".repeat(60),
+    fg: theme.colors.border,
   });
-  popup.add(footer);
+  parent.add(sep2);
 
-  const createdText = new TextRenderable(renderer, {
-    id: `popup-created-${renderCounter}`,
-    content: `Created: ${formatDate(issue.created_at)}`,
+  // Timestamps
+  const timestampsText = new TextRenderable(renderer, {
+    id: `popup-timestamps-${renderCounter}`,
+    content: `Created: ${formatDate(issue.created_at)}  │  Updated: ${formatDate(issue.updated_at)}`,
     fg: theme.colors.textMuted,
   });
-  footer.add(createdText);
+  parent.add(timestampsText);
 
-  const updatedText = new TextRenderable(renderer, {
-    id: `popup-updated-${renderCounter}`,
-    content: `Updated: ${formatDate(issue.updated_at)}`,
+  // Footer hint
+  const footerHint = new TextRenderable(renderer, {
+    id: `popup-footer-hint-${renderCounter}`,
+    content: "Press Escape to close",
     fg: theme.colors.textMuted,
   });
-  footer.add(updatedText);
-
-  // Keyboard hints
-  const hintsText = new TextRenderable(renderer, {
-    id: `popup-hints-${renderCounter}`,
-    content: "j/k: scroll  Esc: close",
-    fg: theme.colors.textMuted,
-  });
-  footer.add(hintsText);
+  parent.add(footerHint);
 }

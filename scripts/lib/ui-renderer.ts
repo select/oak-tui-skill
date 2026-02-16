@@ -11,6 +11,7 @@ import {
   getPriorityLabel,
   getPriorityColor,
   getTypeColor,
+  getTypeIcon,
   capitalize,
 } from "./beads-manager";
 import {
@@ -769,11 +770,11 @@ export function renderBoard(
         overflow: "hidden",
       });
 
-      // Left side: Type badge only
-      const typeBadge = new TextRenderable(renderer, {
+      // Left side: Type badge (colored block)
+      const typeBadge = new BoxRenderable(renderer, {
         id: `board-type-${renderCounter}-${flatIndex}`,
-        content: capitalize(issue.issue_type),
-        fg: getTypeColor(issue.issue_type),
+        backgroundColor: getTypeColor(issue.issue_type),
+        width: 1,
       });
 
       // Right side: Issue ID + Priority icon

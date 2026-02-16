@@ -288,6 +288,26 @@ export function getPriorityColor(priority: number): string {
 }
 
 /**
+ * Get type icon (single letter)
+ */
+export function getTypeIcon(type: string): string {
+  switch (type) {
+    case "feature":
+      return "F";
+    case "bug":
+      return "B";
+    case "task":
+      return "T";
+    case "epic":
+      return "E";
+    case "chore":
+      return "C";
+    default:
+      return "?";
+  }
+}
+
+/**
  * Get type color
  */
 export function getTypeColor(type: string): string {

@@ -202,7 +202,9 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     paddingRight: 1,
     flexDirection: "row",
     visible: false,
-    backgroundColor: "#1e1e1e",
+    backgroundColor: "#3a3a3a",
+    paddingTop: 1,
+    marginTop: "auto",
   });
 
   // Colorful left border (1 char wide) - primary accent color
@@ -218,7 +220,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     flexGrow: 1,
     flexDirection: "row",
     gap: 0,
-    backgroundColor: "#1e1e1e",
+    backgroundColor: "#3a3a3a",
     paddingLeft: 1,
     paddingRight: 1,
   });

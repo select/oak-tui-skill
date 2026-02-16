@@ -859,6 +859,36 @@ async function main() {
               debug("Selected file:", file.path);
             }
           }
+        } else if (keyName === "y") {
+          // Copy relative file path to clipboard
+          const file = getFileAtIndex(
+            fileTree,
+            searchQuery,
+            expandedPaths,
+            filesSelectedIndex,
+          );
+          if (file) {
+            const relativePath = file.path.replace(currentDir + "/", "");
+            const { execSync } = require("node:child_process");
+            try {
+              execSync(
+                `echo -n "${relativePath}" | xclip -selection clipboard`,
+                { stdio: "ignore" },
+              );
+              debug("Copied to clipboard:", relativePath);
+            } catch {
+              // Try xsel as fallback
+              try {
+                execSync(
+                  `echo -n "${relativePath}" | xsel --clipboard --input`,
+                  { stdio: "ignore" },
+                );
+                debug("Copied to clipboard (xsel):", relativePath);
+              } catch {
+                debug("Failed to copy to clipboard - xclip/xsel not available");
+              }
+            }
+          }
         }
       }
     }

@@ -194,31 +194,30 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     gap: 1,
   });
 
-  // Search box container with margin (outer wrapper for visibility control)
+  // Search box container (outer wrapper for visibility control)
   const searchBoxOuter = new BoxRenderable(renderer, {
     id: "search-box-outer",
     width: "100%",
     height: 1,
-    marginLeft: 1,
     marginTop: 1,
     flexDirection: "row",
     visible: false,
   });
 
-  // Colorful left border (1 char wide)
+  // Colorful left border (1 char wide) - primary accent color
   const searchBorder = new BoxRenderable(renderer, {
     id: "search-border",
     width: 1,
-    backgroundColor: theme.colors.primary, // Orange accent
+    backgroundColor: theme.colors.primary,
   });
 
-  // Search box with light background
+  // Search box with subtle dark background
   const searchBox = new BoxRenderable(renderer, {
     id: "search-box",
     flexGrow: 1,
     flexDirection: "row",
     gap: 0,
-    backgroundColor: "#2a2a2a", // Lighter than main background
+    backgroundColor: "#1a1a2e", // Subtle dark with slight blue tint
     paddingLeft: 1,
     paddingRight: 1,
   });
@@ -229,14 +228,14 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
   });
   const searchCursor = new TextRenderable(renderer, {
     id: "search-cursor",
-    content: "▋",
-    fg: theme.colors.primary,
+    content: "|",
+    fg: theme.colors.textMuted,
     visible: false,
   });
   const searchPlaceholder = new TextRenderable(renderer, {
     id: "search-placeholder",
     content: "Type to filter...",
-    fg: "#606060",
+    fg: theme.colors.textMuted,
     visible: true,
   });
   searchBox.add(searchInput);

@@ -201,6 +201,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     padding: 1,
     flexDirection: "row",
     visible: false,
+    backgroundColor: theme.colors.backgroundPanel,
   });
 
   // Colorful left border (1 char wide) - primary accent color

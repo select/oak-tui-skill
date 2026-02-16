@@ -3,6 +3,7 @@ import {
   TextRenderable,
   MarkdownRenderable,
   SyntaxStyle,
+  RGBA,
   type CliRenderer,
 } from "@opentui/core";
 import type { BeadsIssue, Theme } from "../lib/types";
@@ -201,8 +202,22 @@ export function renderIssuePopup(
     });
     parent.add(descLabel);
 
-    // Use MarkdownRenderable for formatted description
-    const syntaxStyle = SyntaxStyle.create();
+    // Use MarkdownRenderable for formatted description with dimmed text
+    const dimmedTextColor = RGBA.fromHex(theme.colors.textMuted);
+    const syntaxStyle = SyntaxStyle.fromStyles({
+      text: { fg: dimmedTextColor },
+      paragraph: { fg: dimmedTextColor },
+      heading: { fg: RGBA.fromHex(theme.colors.text), bold: true },
+      "heading.1": { fg: RGBA.fromHex(theme.colors.primary), bold: true },
+      "heading.2": { fg: RGBA.fromHex(theme.colors.text), bold: true },
+      strong: { fg: RGBA.fromHex(theme.colors.text), bold: true },
+      emphasis: { fg: dimmedTextColor, italic: true },
+      "code.inline": { fg: RGBA.fromHex(theme.colors.primary) },
+      "code.block": { fg: dimmedTextColor },
+      link: { fg: RGBA.fromHex(theme.colors.info), underline: true },
+      list: { fg: dimmedTextColor },
+      "list.marker": { fg: RGBA.fromHex(theme.colors.primary) },
+    });
     const descMarkdown = new MarkdownRenderable(renderer, {
       id: `popup-desc-md-${renderCounter}`,
       content: issue.description,

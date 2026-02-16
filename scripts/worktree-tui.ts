@@ -24,6 +24,7 @@ import {
 } from "./components/file-tree";
 import {
   renderIssuePopup,
+  hidePopup,
   type IssuePopupState,
 } from "./components/issue-popup";
 import {
@@ -420,6 +421,12 @@ async function main() {
           issuePopupState,
           currentTheme(),
           renderCounter,
+          () => {
+            setTimeout(() => {
+              hidePopup(issuePopupState);
+              updateContent();
+            }, 0);
+          },
         );
       } else {
         renderBoard(
@@ -432,12 +439,14 @@ async function main() {
             debug("Selected issue:", issue.id);
           },
           (issue) => {
-            // Double-click opens popup
-            debug("Opening issue popup:", issue.id);
-            issuePopupState.visible = true;
-            issuePopupState.issue = issue;
-            issuePopupState.scrollOffset = 0;
-            updateContent();
+            // Double-click opens popup - defer to avoid crash during mouse event
+            setTimeout(() => {
+              debug("Opening issue popup:", issue.id);
+              issuePopupState.visible = true;
+              issuePopupState.issue = issue;
+              issuePopupState.scrollOffset = 0;
+              updateContent();
+            }, 0);
           },
         );
       }
@@ -462,12 +471,14 @@ async function main() {
             debug("Selected issue:", issue.id);
           },
           (issue) => {
-            // Double-click opens popup
-            debug("Opening issue popup:", issue.id);
-            issuePopupState.visible = true;
-            issuePopupState.issue = issue;
-            issuePopupState.scrollOffset = 0;
-            updateContent();
+            // Double-click opens popup - defer to avoid crash during mouse event
+            setTimeout(() => {
+              debug("Opening issue popup:", issue.id);
+              issuePopupState.visible = true;
+              issuePopupState.issue = issue;
+              issuePopupState.scrollOffset = 0;
+              updateContent();
+            }, 0);
           },
         );
         renderer.requestRender();

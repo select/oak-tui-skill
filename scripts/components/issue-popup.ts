@@ -1,6 +1,18 @@
 import { BoxRenderable, TextRenderable, type CliRenderer } from "@opentui/core";
 import type { BeadsIssue, Theme } from "../lib/types";
 import { getTypeColor } from "../lib/beads-manager";
+import { appendFileSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
+
+const DEBUG_LOG_PATH = join(
+  homedir(),
+  ".local/share/git-worktree-manager/debug.log",
+);
+function debugLog(message: string) {
+  const timestamp = new Date().toLocaleTimeString();
+  appendFileSync(DEBUG_LOG_PATH, `[${timestamp}] [issue-popup] ${message}\n`);
+}
 
 export interface IssuePopupState {
   issue: BeadsIssue | null;
@@ -16,32 +28,18 @@ export function createInitialPopupState(): IssuePopupState {
   };
 }
 
-export function showPopup(
-  state: IssuePopupState,
-  issue: BeadsIssue,
-): IssuePopupState {
-  return {
-    issue,
-    scrollOffset: 0,
-    visible: true,
-  };
+export function showPopup(state: IssuePopupState, issue: BeadsIssue): void {
+  state.issue = issue;
+  state.scrollOffset = 0;
+  state.visible = true;
 }
 
-export function hidePopup(state: IssuePopupState): IssuePopupState {
-  return {
-    ...state,
-    visible: false,
-  };
+export function hidePopup(state: IssuePopupState): void {
+  state.visible = false;
 }
 
-export function scrollPopup(
-  state: IssuePopupState,
-  delta: number,
-): IssuePopupState {
-  return {
-    ...state,
-    scrollOffset: Math.max(0, state.scrollOffset + delta),
-  };
+export function scrollPopup(state: IssuePopupState, delta: number): void {
+  state.scrollOffset = Math.max(0, state.scrollOffset + delta);
 }
 
 // Priority labels
@@ -86,21 +84,31 @@ export function renderIssuePopup(
   state: IssuePopupState,
   theme: Theme,
   renderCounter: number,
+  onClose?: () => void,
 ): void {
   if (!state.visible || !state.issue) return;
 
   const issue = state.issue;
   const typeColor = getTypeColor(issue.issue_type);
 
-  // Header with type color bar and title
-  const header = new BoxRenderable(renderer, {
-    id: `popup-header-${renderCounter}`,
+  // Header row with content on left and close button on right
+  const headerRow = new BoxRenderable(renderer, {
+    id: `popup-header-row-${renderCounter}`,
     width: "100%",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  });
+  parent.add(headerRow);
+
+  // Left side: type indicator + ID
+  const headerLeft = new BoxRenderable(renderer, {
+    id: `popup-header-left-${renderCounter}`,
     flexDirection: "row",
     alignItems: "center",
     gap: 1,
   });
-  parent.add(header);
+  headerRow.add(headerLeft);
 
   // Type color indicator
   const typeIndicator = new BoxRenderable(renderer, {
@@ -109,7 +117,7 @@ export function renderIssuePopup(
     height: 1,
     backgroundColor: typeColor,
   });
-  header.add(typeIndicator);
+  headerLeft.add(typeIndicator);
 
   // Issue ID
   const idText = new TextRenderable(renderer, {
@@ -117,7 +125,34 @@ export function renderIssuePopup(
     content: issue.id,
     fg: theme.colors.textMuted,
   });
-  header.add(idText);
+  headerLeft.add(idText);
+
+  // Close button on right
+  if (onClose) {
+    debugLog("Creating close button with onMouseDown handler");
+    const closeBtn = new BoxRenderable(renderer, {
+      id: `popup-close-btn-${renderCounter}`,
+      paddingLeft: 1,
+      paddingRight: 1,
+      backgroundColor: theme.colors.error,
+      onMouseDown: (e) => {
+        debugLog("Close button clicked!");
+        e.stopPropagation();
+        setTimeout(() => {
+          debugLog("Calling onClose callback");
+          onClose();
+        }, 0);
+      },
+    });
+    headerRow.add(closeBtn);
+
+    const closeBtnText = new TextRenderable(renderer, {
+      id: `popup-close-btn-text-${renderCounter}`,
+      content: "X",
+      fg: "#ffffff",
+    });
+    closeBtn.add(closeBtnText);
+  }
 
   // Issue title
   const titleText = new TextRenderable(renderer, {

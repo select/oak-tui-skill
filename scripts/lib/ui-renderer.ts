@@ -275,6 +275,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     width: "100%",
     paddingLeft: 1,
     paddingRight: 1,
+    paddingTop: 1,
     paddingBottom: 1,
     backgroundColor: theme.colors.backgroundPanel,
     flexDirection: "row",

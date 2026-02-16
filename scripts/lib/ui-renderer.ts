@@ -2,6 +2,7 @@ import {
   BoxRenderable,
   ScrollBoxRenderable,
   TextRenderable,
+  createTextAttributes,
   type CliRenderer,
 } from "@opentui/core";
 import Fuse from "fuse.js";
@@ -182,7 +183,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     id: "title-text",
     content: "🌳 Oak",
     fg: theme.colors.textMuted,
-    bold: true,
+    attributes: createTextAttributes({ bold: true }),
     flexShrink: 0,
   });
   titleBox.add(titleText);

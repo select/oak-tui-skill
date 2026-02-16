@@ -47,9 +47,15 @@ export function groupIssuesByStatus(issues: BeadsIssue[]): GroupedIssues {
     closed: [],
   };
 
+  const today = new Date().toDateString();
+
   for (const issue of issues) {
     if (issue.status === "closed") {
-      grouped.closed.push(issue);
+      // Only show issues closed today
+      const closedDate = new Date(issue.updated_at).toDateString();
+      if (closedDate === today) {
+        grouped.closed.push(issue);
+      }
     } else if (issue.status === "in_progress") {
       grouped.in_progress.push(issue);
     } else if (issue.status === "blocked") {

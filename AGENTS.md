@@ -13,27 +13,23 @@ It runs in a tmux pane and provides a visual interface for navigating projects a
 # Install dependencies
 bun install
 
-# Run the TUI (normal mode)
-bun run start
-# or directly:
-bun run scripts/worktree-tui.ts
+# Launch TUI in tmux pane (normal mode)
+~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh
 
-# Run in dev mode with hot reload (for development)
-bun run dev
-# or directly:
-bun run --watch scripts/worktree-tui.ts
+# Launch TUI in dev mode with hot reload
+~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --dev
 
-# Run with debug logging
-bun run scripts/worktree-tui.ts --debug
+# Launch TUI in dev mode with debug logging
+~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --dev --debug
+
+# Kill existing TUI instance
+~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --kill
+
+# Check if TUI is already running
+~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --check-only
 
 # View debug logs
 tail -f ~/.local/share/git-worktree-manager/debug.log
-
-# Launch in tmux pane (production)
-tmux split-window -h -l 30% "cd $(pwd) && bun run scripts/worktree-tui.ts"
-
-# Launch in tmux pane (dev mode)
-tmux split-window -h -l 30% "cd ~/.config/opencode/skills/oak-tui-skill && bun run dev"
 ```
 
 ### No Tests Currently
@@ -227,6 +223,58 @@ Use these colors for consistency with OpenCode:
 2. **Single instance**: The TUI enforces single-instance via Unix socket - kill existing before restart
 3. **Tmux required**: The TUI is designed to run in a tmux pane
 4. **Bun runtime**: Use `bun` not `node` - the project uses Bun-specific APIs
+
+## Debugging the TUI
+
+**IMPORTANT**: The TUI runs in tmux, NOT in a browser. Do NOT use browser DevTools or screenshots for debugging.
+
+### Debug Methods
+
+1. **Debug logs** - Launch with `--debug` flag and tail the log file:
+
+   ```bash
+   ~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --dev --debug
+   tail -f ~/.local/share/git-worktree-manager/debug.log
+   ```
+
+2. **Tmux capture** - Capture the current tmux pane content:
+
+   ```bash
+   # Capture visible pane content
+   tmux capture-pane -t oak-tui -p
+
+   # Capture with history (last 100 lines)
+   tmux capture-pane -t oak-tui -p -S -100
+   ```
+
+3. **Send keys to TUI** - Interact with the TUI programmatically:
+
+   ```bash
+   # Send a key (e.g., 'j' to move down)
+   tmux send-keys -t oak-tui j
+
+   # Send Enter key
+   tmux send-keys -t oak-tui Enter
+
+   # Send Escape key
+   tmux send-keys -t oak-tui Escape
+   ```
+
+4. **Check if TUI is running**:
+   ```bash
+   tmux list-panes -t oak-tui 2>/dev/null && echo "Running" || echo "Not running"
+   ```
+
+### Adding Debug Statements
+
+Use the `debugLog()` function in code to add debug output:
+
+```typescript
+debugLog(
+  `State changed: selectedIndex=${selectedIndex}, activeTab=${activeTab}`,
+);
+debugLog(`Issue data: ${JSON.stringify(issue, null, 2)}`);
+```
 
 # Beads Workflow Context
 

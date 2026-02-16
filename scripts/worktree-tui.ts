@@ -13,6 +13,7 @@ import {
 import {
   loadRecentProjects,
   saveRecentProject,
+  removeRecentProject,
   getGitRoot,
   buildProjectNodes,
 } from "./lib/project-manager";
@@ -26,8 +27,15 @@ import {
   renderProjects,
   renderFiles,
   renderThemes,
+  renderBoard,
   clearContent,
   updateUIColors,
+  getSelectableCount,
+  getItemAtIndex,
+  getFilesSelectableCount,
+  getFileAtIndex,
+  filterProjects,
+  filterBoardIssues,
 } from "./lib/ui-renderer";
 import {
   initThemes,
@@ -35,9 +43,24 @@ import {
   setTheme,
   availableThemes,
 } from "./lib/theme-manager";
+import {
+  fetchAndGroupIssues,
+  getTotalBoardCount,
+  getIssueAtIndex,
+  getNextSectionStart,
+  getPrevSectionStart,
+} from "./lib/beads-manager";
+import type { GroupedIssues } from "./lib/types";
 import { initTmuxManager, setDebugFn } from "./lib/tmux-manager";
-import { existsSync, mkdirSync, appendFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  appendFileSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
 
 // Debug logging - must be defined before setDebugFn
 const DEBUG = process.argv.includes("--debug");
@@ -51,6 +74,33 @@ function debug(...args: unknown[]): void {
     .map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a)))
     .join(" ");
   appendFileSync(DEBUG_LOG_PATH, `[${timestamp}] ${message}\n`);
+}
+
+// UI state persistence
+const DATA_DIR = join(homedir(), ".local/share/git-worktree-manager");
+const UI_STATE_PATH = join(DATA_DIR, "ui-state.json");
+
+function loadUIState(): { activeTab?: TabId } {
+  try {
+    if (existsSync(UI_STATE_PATH)) {
+      const data = readFileSync(UI_STATE_PATH, "utf-8");
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    debug("Error loading UI state:", err);
+  }
+  return {};
+}
+
+function saveUIState(state: { activeTab: TabId }): void {
+  try {
+    if (!existsSync(DATA_DIR)) {
+      mkdirSync(DATA_DIR, { recursive: true });
+    }
+    writeFileSync(UI_STATE_PATH, JSON.stringify(state, null, 2));
+  } catch (err) {
+    debug("Error saving UI state:", err);
+  }
 }
 
 // Initialize theme system
@@ -134,10 +184,31 @@ async function main() {
   const renderer = await createCliRenderer({ exitOnCtrlC: true });
   debug("Renderer created");
 
-  let activeTab: TabId = "projects";
+  // Load saved tab or default to "projects"
+  const savedState = loadUIState();
+  const validTabs: TabId[] = ["projects", "board", "files", "themes"];
+  let activeTab: TabId =
+    savedState.activeTab && validTabs.includes(savedState.activeTab)
+      ? savedState.activeTab
+      : "projects";
+  debug("Loaded activeTab:", activeTab);
   let renderCounter = 0;
-  let searchQuery = "";
+  let searchQuery = ""; // For files view
+  let searchMode = false; // Whether search input is active (files view)
+  let projectsSearchQuery = ""; // For projects view
+  let projectsSearchMode = false; // Whether search input is active (projects view)
+  let boardSearchQuery = ""; // For board view
+  let boardSearchMode = false; // Whether search input is active (board view)
   let expandedPaths = new Set<string>();
+  let selectedIndex = 0; // Track keyboard selection for projects/board
+  let filesSelectedIndex = 0; // Track keyboard selection for files view
+  let boardIssues: GroupedIssues = {
+    blocked: [],
+    ready: [],
+    in_progress: [],
+    closed: [],
+  };
+  let boardRefreshInterval: ReturnType<typeof setInterval> | null = null;
 
   // Initialize top-level folders as expanded
   for (const node of fileTree) {
@@ -154,6 +225,7 @@ async function main() {
   // Create tabs
   const TABS: { id: TabId; label: string }[] = [
     { id: "projects", label: "Projects" },
+    { id: "board", label: "Board" },
     { id: "files", label: "Files" },
     { id: "themes", label: "Themes" },
   ];
@@ -178,6 +250,7 @@ async function main() {
       if (event.type === "down") {
         event.stopPropagation();
         activeTab = tab.id;
+        saveUIState({ activeTab });
         updateContent();
       }
     };
@@ -221,16 +294,35 @@ async function main() {
   // Start socket server
   createSocketServer(reloadWithDir);
 
+  // Cursor blink interval
+  let cursorVisible = true;
+  setInterval(() => {
+    const isSearchActive =
+      (activeTab === "projects" && projectsSearchMode) ||
+      (activeTab === "files" && searchMode) ||
+      (activeTab === "board" && boardSearchMode);
+
+    if (isSearchActive) {
+      cursorVisible = !cursorVisible;
+      ui.searchCursor.visible = cursorVisible;
+      renderer.requestRender();
+    }
+  }, 530);
+
   // Add UI to renderer
   renderer.root.add(ui.root);
   debug("UI added to renderer");
 
   // Update content function
   function updateContent() {
+    // Clear board refresh interval when switching tabs
+    if (boardRefreshInterval) {
+      clearInterval(boardRefreshInterval);
+      boardRefreshInterval = null;
+    }
+
     // Hide search box by default
-    ui.searchBox.visible = false;
-    ui.searchBox.height = 0;
-    ui.searchBox.paddingTop = 0;
+    ui.searchBoxOuter.visible = false;
 
     // Clear existing content
     clearContent(ui.contentScroll);
@@ -250,20 +342,32 @@ async function main() {
     });
 
     if (activeTab === "projects") {
+      // Show search box when in search mode
+      if (projectsSearchMode || projectsSearchQuery) {
+        ui.searchBoxOuter.visible = true;
+        ui.searchInput.content = projectsSearchQuery;
+        ui.searchPlaceholder.visible = projectsSearchQuery.length === 0;
+        ui.searchCursor.visible = projectsSearchMode;
+      }
+
+      const filteredProjects = filterProjects(
+        projectNodes,
+        projectsSearchQuery,
+      );
       renderProjects(
         renderer,
         ui.contentScroll,
-        projectNodes,
+        filteredProjects,
         renderCounter,
         updateContent,
+        selectedIndex,
       );
     } else if (activeTab === "files") {
       // Show search box
-      ui.searchBox.visible = true;
-      ui.searchBox.height = "auto";
-      ui.searchBox.paddingTop = 1;
+      ui.searchBoxOuter.visible = true;
       ui.searchInput.content = searchQuery;
       ui.searchPlaceholder.visible = searchQuery.length === 0;
+      ui.searchCursor.visible = searchMode;
 
       renderFiles(
         renderer,
@@ -281,7 +385,54 @@ async function main() {
           }
           setTimeout(() => updateContent(), 0);
         },
+        filesSelectedIndex,
       );
+    } else if (activeTab === "board") {
+      // Show search box when in search mode
+      if (boardSearchMode || boardSearchQuery) {
+        ui.searchBoxOuter.visible = true;
+        ui.searchInput.content = boardSearchQuery;
+        ui.searchPlaceholder.visible = boardSearchQuery.length === 0;
+        ui.searchCursor.visible = boardSearchMode;
+      }
+
+      // Fetch fresh issues and filter
+      boardIssues = fetchAndGroupIssues();
+      const filteredIssues = filterBoardIssues(boardIssues, boardSearchQuery);
+      renderBoard(
+        renderer,
+        ui.contentScroll,
+        filteredIssues,
+        renderCounter,
+        selectedIndex,
+        (issue) => {
+          debug("Selected issue:", issue.id);
+          // TODO: Show issue details or open in editor
+        },
+      );
+
+      // Set up auto-refresh every 5 seconds
+      boardRefreshInterval = setInterval(() => {
+        boardIssues = fetchAndGroupIssues();
+        const refreshedFiltered = filterBoardIssues(
+          boardIssues,
+          boardSearchQuery,
+        );
+        clearContent(ui.contentScroll);
+        renderCounter++;
+        renderBoard(
+          renderer,
+          ui.contentScroll,
+          refreshedFiltered,
+          renderCounter,
+          selectedIndex,
+          (issue) => {
+            debug("Selected issue:", issue.id);
+          },
+        );
+        renderer.requestRender();
+        debug(`Board auto-refreshed (render ${renderCounter})`);
+      }, 5000);
     } else if (activeTab === "themes") {
       renderThemes(
         renderer,
@@ -306,26 +457,323 @@ async function main() {
     if (keyName === "r") {
       // Reload the TUI
       reloadWithDir(currentDir);
+    } else if (
+      keyName === "1" ||
+      keyName === "2" ||
+      keyName === "3" ||
+      keyName === "4"
+    ) {
+      // Number keys: switch to specific tab
+      const tabIndex = parseInt(keyName) - 1;
+      if (tabIndex >= 0 && tabIndex < TABS.length) {
+        activeTab = TABS[tabIndex].id;
+        saveUIState({ activeTab });
+        selectedIndex = 0;
+        filesSelectedIndex = 0;
+        updateContent();
+      }
+    } else if (keyName === "tab" && key.shift) {
+      // Shift+Tab: cycle tabs in reverse
+      const currentIndex = TABS.findIndex((t) => t.id === activeTab);
+      const prevIndex = (currentIndex - 1 + TABS.length) % TABS.length;
+      activeTab = TABS[prevIndex].id;
+      saveUIState({ activeTab });
+      selectedIndex = 0;
+      updateContent();
     } else if (keyName === "tab") {
+      // Tab: cycle tabs forward
       const currentIndex = TABS.findIndex((t) => t.id === activeTab);
       const nextIndex = (currentIndex + 1) % TABS.length;
       activeTab = TABS[nextIndex].id;
+      saveUIState({ activeTab });
+      selectedIndex = 0; // Reset selection when switching tabs
       updateContent();
     } else if (keyName === "escape") {
-      if (searchQuery) {
+      // Clear all search modes and queries
+      if (
+        searchMode ||
+        searchQuery ||
+        projectsSearchMode ||
+        projectsSearchQuery ||
+        boardSearchMode ||
+        boardSearchQuery
+      ) {
+        searchMode = false;
         searchQuery = "";
+        projectsSearchMode = false;
+        projectsSearchQuery = "";
+        boardSearchMode = false;
+        boardSearchQuery = "";
+        selectedIndex = 0;
+        filesSelectedIndex = 0;
         updateContent();
       }
-    } else if (activeTab === "files" && keyName === "/") {
-      // Toggle search mode (not implemented yet)
-    } else if (activeTab === "files" && searchQuery !== undefined) {
-      // Handle search input
-      if (keyName === "backspace") {
-        searchQuery = searchQuery.slice(0, -1);
+    } else if (activeTab === "projects") {
+      // Search mode handling
+      if (projectsSearchMode) {
+        if (keyName === "return") {
+          projectsSearchMode = false;
+          updateContent();
+          return;
+        } else if (keyName === "backspace") {
+          projectsSearchQuery = projectsSearchQuery.slice(0, -1);
+          selectedIndex = 0;
+          updateContent();
+          return;
+        } else if (keyName.length === 1) {
+          projectsSearchQuery += keyName;
+          selectedIndex = 0;
+          updateContent();
+          return;
+        }
+        return;
+      }
+
+      // Filter projects by search query
+      const filteredProjects = filterProjects(
+        projectNodes,
+        projectsSearchQuery,
+      );
+      // Navigation with arrow keys and vim keys
+      const totalItems = getSelectableCount(filteredProjects);
+      if (keyName === "/" || keyName === "slash") {
+        projectsSearchMode = true;
         updateContent();
-      } else if (keyName.length === 1) {
-        searchQuery += keyName;
+      } else if (keyName === "up" || keyName === "k") {
+        selectedIndex = Math.max(0, selectedIndex - 1);
         updateContent();
+      } else if (keyName === "down" || keyName === "j") {
+        selectedIndex = Math.min(totalItems - 1, selectedIndex + 1);
+        updateContent();
+      } else if (keyName === "left" || keyName === "h") {
+        // Collapse/fold the current item
+        const item = getItemAtIndex(filteredProjects, selectedIndex);
+        if (item) {
+          const node = filteredProjects[item.projectIndex];
+          if (node.isExpanded) {
+            node.isExpanded = false;
+            expandedPaths.delete(node.path);
+            updateContent();
+          }
+        }
+      } else if (keyName === "right" || keyName === "l") {
+        // Expand/unfold the current item
+        const item = getItemAtIndex(filteredProjects, selectedIndex);
+        if (item) {
+          const node = filteredProjects[item.projectIndex];
+          if (!node.isExpanded) {
+            node.isExpanded = true;
+            expandedPaths.add(node.path);
+            updateContent();
+          }
+        }
+      } else if (keyName === "space" || keyName === "return") {
+        // Select/activate the current item
+        const item = getItemAtIndex(filteredProjects, selectedIndex);
+        if (item) {
+          if (item.type === "project") {
+            // Toggle project expansion
+            const node = filteredProjects[item.projectIndex];
+            node.isExpanded = !node.isExpanded;
+            if (node.isExpanded) {
+              expandedPaths.add(node.path);
+            } else {
+              expandedPaths.delete(node.path);
+            }
+            updateContent();
+          } else if (
+            item.type === "worktree" &&
+            item.worktreeIndex !== undefined
+          ) {
+            // Switch to worktree
+            const node = filteredProjects[item.projectIndex];
+            const wt = node.worktrees[item.worktreeIndex];
+            if (wt) {
+              import("./lib/tmux-manager").then(({ switchToWorktree }) => {
+                switchToWorktree(wt.path, node.path);
+                updateContent();
+              });
+            }
+          }
+        }
+      } else if (keyName === "d") {
+        // Delete project from recent list (only for project headers, not worktrees)
+        const item = getItemAtIndex(filteredProjects, selectedIndex);
+        if (item && item.type === "project") {
+          const node = filteredProjects[item.projectIndex];
+          const removed = removeRecentProject(node.path);
+          if (removed) {
+            debug("Removed project from recent list:", node.path);
+            // Reload project list
+            recentProjects = loadRecentProjects();
+            projectNodes = buildProjectNodes(recentProjects, gitRoot);
+            // Adjust selected index if needed
+            const newTotal = getSelectableCount(projectNodes);
+            if (selectedIndex >= newTotal) {
+              selectedIndex = Math.max(0, newTotal - 1);
+            }
+            updateContent();
+          }
+        }
+      }
+    } else if (activeTab === "board") {
+      // Board navigation with search mode
+      const filteredIssues = filterBoardIssues(boardIssues, boardSearchQuery);
+      const totalItems = getTotalBoardCount(filteredIssues);
+
+      if (boardSearchMode) {
+        // In search mode, handle text input
+        if (keyName === "return") {
+          // Exit search mode but keep filter active
+          boardSearchMode = false;
+          updateContent();
+        } else if (keyName === "backspace") {
+          boardSearchQuery = boardSearchQuery.slice(0, -1);
+          selectedIndex = 0; // Reset selection when search changes
+          updateContent();
+        } else if (keyName.length === 1) {
+          boardSearchQuery += keyName;
+          selectedIndex = 0; // Reset selection when search changes
+          updateContent();
+        }
+      } else if (keyName === "/") {
+        // Enter search mode
+        boardSearchMode = true;
+        boardSearchQuery = "";
+        selectedIndex = 0;
+        updateContent();
+      } else if (keyName === "up" || keyName === "k") {
+        selectedIndex = Math.max(0, selectedIndex - 1);
+        updateContent();
+      } else if (keyName === "down" || keyName === "j") {
+        selectedIndex = Math.min(totalItems - 1, selectedIndex + 1);
+        updateContent();
+      } else if (keyName === "left" || keyName === "h") {
+        // Jump to previous section
+        selectedIndex = getPrevSectionStart(filteredIssues, selectedIndex);
+        updateContent();
+      } else if (keyName === "right" || keyName === "l") {
+        // Jump to next section
+        selectedIndex = getNextSectionStart(filteredIssues, selectedIndex);
+        updateContent();
+      } else if (keyName === "return" || keyName === "space") {
+        const result = getIssueAtIndex(filteredIssues, selectedIndex);
+        if (result) {
+          debug("Activated issue:", result.issue.id);
+          // TODO: Show issue details
+        }
+      } else if (keyName === "y") {
+        const result = getIssueAtIndex(filteredIssues, selectedIndex);
+        if (result) {
+          // Copy issue ID to clipboard using xclip or xsel
+          const { execSync } = require("node:child_process");
+          try {
+            execSync(
+              `echo -n "${result.issue.id}" | xclip -selection clipboard`,
+              { stdio: "ignore" },
+            );
+            debug("Copied to clipboard:", result.issue.id);
+          } catch {
+            // Try xsel as fallback
+            try {
+              execSync(
+                `echo -n "${result.issue.id}" | xsel --clipboard --input`,
+                { stdio: "ignore" },
+              );
+              debug("Copied to clipboard (xsel):", result.issue.id);
+            } catch {
+              debug("Failed to copy to clipboard - xclip/xsel not available");
+            }
+          }
+        }
+      } else if (keyName === "r") {
+        // Manual refresh
+        debug("Manual board refresh triggered");
+        updateContent();
+      }
+    } else if (activeTab === "files") {
+      // Files navigation with vim keys and arrow keys
+      const totalFiles = getFilesSelectableCount(
+        fileTree,
+        searchQuery,
+        expandedPaths,
+      );
+
+      if (searchMode) {
+        // In search mode, handle text input
+        if (keyName === "return") {
+          // Exit search mode but keep filter active
+          searchMode = false;
+          updateContent();
+        } else if (keyName === "backspace") {
+          searchQuery = searchQuery.slice(0, -1);
+          filesSelectedIndex = 0; // Reset selection when search changes
+          updateContent();
+        } else if (keyName.length === 1) {
+          searchQuery += keyName;
+          filesSelectedIndex = 0; // Reset selection when search changes
+          updateContent();
+        }
+      } else {
+        // Normal navigation mode
+        if (keyName === "/") {
+          // Activate search mode
+          searchMode = true;
+          updateContent();
+        } else if (keyName === "up" || keyName === "k") {
+          filesSelectedIndex = Math.max(0, filesSelectedIndex - 1);
+          updateContent();
+        } else if (keyName === "down" || keyName === "j") {
+          filesSelectedIndex = Math.min(totalFiles - 1, filesSelectedIndex + 1);
+          updateContent();
+        } else if (keyName === "left" || keyName === "h") {
+          // Collapse folder
+          const file = getFileAtIndex(
+            fileTree,
+            searchQuery,
+            expandedPaths,
+            filesSelectedIndex,
+          );
+          if (file && file.isDirectory && expandedPaths.has(file.path)) {
+            expandedPaths.delete(file.path);
+            updateContent();
+          }
+        } else if (keyName === "right" || keyName === "l") {
+          // Expand folder
+          const file = getFileAtIndex(
+            fileTree,
+            searchQuery,
+            expandedPaths,
+            filesSelectedIndex,
+          );
+          if (file && file.isDirectory && !expandedPaths.has(file.path)) {
+            expandedPaths.add(file.path);
+            ensureChildrenLoaded(fileTree, file.path, true);
+            updateContent();
+          }
+        } else if (keyName === "space" || keyName === "return") {
+          // Toggle folder or activate file
+          const file = getFileAtIndex(
+            fileTree,
+            searchQuery,
+            expandedPaths,
+            filesSelectedIndex,
+          );
+          if (file) {
+            if (file.isDirectory) {
+              if (expandedPaths.has(file.path)) {
+                expandedPaths.delete(file.path);
+              } else {
+                expandedPaths.add(file.path);
+                ensureChildrenLoaded(fileTree, file.path, true);
+              }
+              updateContent();
+            } else {
+              // TODO: Open file in editor
+              debug("Selected file:", file.path);
+            }
+          }
+        }
       }
     }
   });

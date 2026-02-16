@@ -112,7 +112,7 @@ if [[ "$DEBUG" == "1" ]]; then
 fi
 
 if [[ "$MODE" == "dev" ]]; then
-    CMD="cd '$SKILL_DIR' && exec bun run dev"
+    CMD="cd '$SKILL_DIR' && exec bun run --watch scripts/worktree-tui.ts $DEBUG_FLAG"
 else
     CMD="cd '$(pwd)' && exec bun run '$SKILL_DIR/scripts/worktree-tui.ts' $DEBUG_FLAG"
 fi

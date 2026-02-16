@@ -142,6 +142,7 @@ export function renderIssuePopup(
       paddingLeft: 1,
       paddingRight: 1,
       backgroundColor: theme.colors.error,
+      selectable: false,
       onMouseDown: (e) => {
         debugLog("Close button clicked!");
         e.stopPropagation();

@@ -23,6 +23,10 @@ import {
   ensureChildrenLoaded,
 } from "./components/file-tree";
 import {
+  renderIssuePopup,
+  type IssuePopupState,
+} from "./components/issue-popup";
+import {
   createUIComponents,
   renderProjects,
   renderFiles,
@@ -209,6 +213,12 @@ async function main() {
     closed: [],
   };
   let boardRefreshInterval: ReturnType<typeof setInterval> | null = null;
+  // Issue popup state
+  let issuePopupState: IssuePopupState = {
+    issue: null,
+    scrollOffset: 0,
+    visible: false,
+  };
 
   // Initialize top-level folders as expanded
   for (const node of fileTree) {
@@ -401,20 +411,39 @@ async function main() {
       // Fetch fresh issues and filter
       boardIssues = fetchAndGroupIssues();
       const filteredIssues = filterBoardIssues(boardIssues, boardSearchQuery);
-      renderBoard(
-        renderer,
-        ui.contentScroll,
-        filteredIssues,
-        renderCounter,
-        selectedIndex,
-        (issue) => {
-          debug("Selected issue:", issue.id);
-          // TODO: Show issue details or open in editor
-        },
-      );
 
-      // Set up auto-refresh every 5 seconds
+      // Show popup if visible, otherwise show board
+      if (issuePopupState.visible && issuePopupState.issue) {
+        renderIssuePopup(
+          renderer,
+          ui.contentScroll,
+          issuePopupState,
+          currentTheme(),
+          renderCounter,
+          () => {
+            issuePopupState.visible = false;
+            issuePopupState.issue = null;
+            issuePopupState.scrollOffset = 0;
+            updateContent();
+          },
+        );
+      } else {
+        renderBoard(
+          renderer,
+          ui.contentScroll,
+          filteredIssues,
+          renderCounter,
+          selectedIndex,
+          (issue) => {
+            debug("Selected issue:", issue.id);
+            // TODO: Show issue details or open in editor
+          },
+        );
+      }
+
+      // Set up auto-refresh every 5 seconds (skip if popup is visible)
       boardRefreshInterval = setInterval(() => {
+        if (issuePopupState.visible) return; // Don't refresh while popup is open
         boardIssues = fetchAndGroupIssues();
         const refreshedFiltered = filterBoardIssues(
           boardIssues,
@@ -491,6 +520,14 @@ async function main() {
       selectedIndex = 0; // Reset selection when switching tabs
       updateContent();
     } else if (keyName === "escape") {
+      // Close popup if open
+      if (issuePopupState.visible) {
+        issuePopupState.visible = false;
+        issuePopupState.issue = null;
+        issuePopupState.scrollOffset = 0;
+        updateContent();
+        return;
+      }
       // Clear all search modes and queries
       if (
         searchMode ||
@@ -619,6 +656,27 @@ async function main() {
         }
       }
     } else if (activeTab === "board") {
+      // Handle popup navigation first
+      if (issuePopupState.visible) {
+        if (keyName === "j" || keyName === "down") {
+          issuePopupState.scrollOffset = Math.min(
+            issuePopupState.scrollOffset + 1,
+            20,
+          ); // Max scroll
+          updateContent();
+          return;
+        } else if (keyName === "k" || keyName === "up") {
+          issuePopupState.scrollOffset = Math.max(
+            issuePopupState.scrollOffset - 1,
+            0,
+          );
+          updateContent();
+          return;
+        }
+        // Escape is handled globally above
+        return; // Ignore other keys when popup is open
+      }
+
       // Board navigation with search mode
       const filteredIssues = filterBoardIssues(boardIssues, boardSearchQuery);
       const totalItems = getTotalBoardCount(filteredIssues);
@@ -662,7 +720,10 @@ async function main() {
         const result = getIssueAtIndex(filteredIssues, selectedIndex);
         if (result) {
           debug("Activated issue:", result.issue.id);
-          // TODO: Show issue details
+          issuePopupState.issue = result.issue;
+          issuePopupState.visible = true;
+          issuePopupState.scrollOffset = 0;
+          updateContent();
         }
       } else if (keyName === "y") {
         const result = getIssueAtIndex(filteredIssues, selectedIndex);

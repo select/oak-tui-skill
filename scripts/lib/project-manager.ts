@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join, basename } from "path";
 import { homedir } from "os";
 import type { Worktree, ProjectNode } from "./types";
+import { hasBackgroundPane } from "./tmux-manager";
 
 const DATA_DIR = join(homedir(), ".local", "share", "oak-tui");
 const RECENT_PROJECTS_FILE = join(DATA_DIR, "recent-projects.json");
@@ -194,11 +195,14 @@ export function buildProjectNodes(
     const worktrees = getWorktrees(project.path);
     const isActive = project.path === currentGitRoot;
 
+    // Check if any worktree has a background pane
+    const hasAnyPane = worktrees.some((wt) => hasBackgroundPane(wt.path));
+
     nodes.push({
       path: project.path,
       name: basename(project.path),
       worktrees,
-      isExpanded: isActive, // Auto-expand active project
+      isExpanded: isActive || hasAnyPane, // Auto-expand if active OR has panes
       isActive,
     });
   }

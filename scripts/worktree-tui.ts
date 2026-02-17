@@ -889,11 +889,7 @@ async function main() {
             expandedPaths,
             filesSelectedIndex,
           );
-          if (
-            file != null &&
-            file.isDirectory &&
-            expandedPaths.has(file.path)
-          ) {
+          if (file?.isDirectory === true && expandedPaths.has(file.path)) {
             expandedPaths.delete(file.path);
             updateContent();
           }
@@ -905,11 +901,7 @@ async function main() {
             expandedPaths,
             filesSelectedIndex,
           );
-          if (
-            file != null &&
-            file.isDirectory &&
-            !expandedPaths.has(file.path)
-          ) {
+          if (file?.isDirectory === true && !expandedPaths.has(file.path)) {
             expandedPaths.add(file.path);
             ensureChildrenLoaded(fileTree, file.path, true);
             updateContent();

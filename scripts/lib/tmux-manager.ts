@@ -211,6 +211,13 @@ export function switchToWorktree(
   const leftPaneId = getLeftPaneId();
   debug("Current left pane:", leftPaneId);
 
+  // Check if we're already in the target worktree - do nothing
+  const currentPath = getCurrentWorktreePath();
+  if (currentPath === worktreePath) {
+    debug("Already in target worktree, doing nothing");
+    return;
+  }
+
   // Check if this worktree has a background pane
   if (hasBackgroundPane(worktreePath)) {
     debug("Recovering background pane for:", worktreePath);

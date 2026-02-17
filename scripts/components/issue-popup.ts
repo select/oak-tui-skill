@@ -13,10 +13,7 @@ import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
-const DEBUG_LOG_PATH = join(
-  homedir(),
-  ".local/share/git-worktree-manager/debug.log",
-);
+const DEBUG_LOG_PATH = join(homedir(), ".local/share/oak-tui/debug.log");
 function debugLog(message: string) {
   const timestamp = new Date().toLocaleTimeString();
   appendFileSync(DEBUG_LOG_PATH, `[${timestamp}] [issue-popup] ${message}\n`);

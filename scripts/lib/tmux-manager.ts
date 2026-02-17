@@ -7,7 +7,7 @@ import { homedir } from "node:os";
 import type { BackgroundPane } from "./types";
 
 // Data directory for persistence
-const DATA_DIR = join(homedir(), ".local", "share", "git-worktree-manager");
+const DATA_DIR = join(homedir(), ".local", "share", "oak-tui");
 const BG_PANES_FILE = join(DATA_DIR, "background-panes.json");
 
 // Track background panes (worktree path -> BackgroundPane)

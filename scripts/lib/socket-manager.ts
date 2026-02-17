@@ -5,7 +5,7 @@ import { createServer, createConnection, type Socket } from "net";
 import { join } from "path";
 import { homedir } from "os";
 
-const DATA_DIR = join(homedir(), ".local", "share", "git-worktree-manager");
+const DATA_DIR = join(homedir(), ".local", "share", "oak-tui");
 const SOCKET_FILE = join(DATA_DIR, "tui.sock");
 
 export function debug(..._args: readonly unknown[]): void {

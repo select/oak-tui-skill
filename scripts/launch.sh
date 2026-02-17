@@ -4,7 +4,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(dirname "$SCRIPT_DIR")"
-SOCKET_PATH="$HOME/.local/share/git-worktree-manager/tui.sock"
+SOCKET_PATH="$HOME/.local/share/oak-tui/tui.sock"
 DEBUG=${DEBUG:-0}
 
 log() {

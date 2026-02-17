@@ -676,10 +676,13 @@ async function main() {
         // Collapse/fold the current item
         const item = getItemAtIndex(filteredProjects, selectedIndex);
         if (item) {
-          const node = filteredProjects[item.projectIndex];
-          if (node.isExpanded) {
-            node.isExpanded = false;
-            expandedPaths.delete(node.path);
+          // Find the original node in projectNodes by path
+          const originalNode = projectNodes.find(
+            (n) => n.path === filteredProjects[item.projectIndex].path,
+          );
+          if (originalNode?.isExpanded) {
+            originalNode.isExpanded = false;
+            expandedPaths.delete(originalNode.path);
             updateContent();
           }
         }
@@ -687,10 +690,13 @@ async function main() {
         // Expand/unfold the current item
         const item = getItemAtIndex(filteredProjects, selectedIndex);
         if (item) {
-          const node = filteredProjects[item.projectIndex];
-          if (!node.isExpanded) {
-            node.isExpanded = true;
-            expandedPaths.add(node.path);
+          // Find the original node in projectNodes by path
+          const originalNode = projectNodes.find(
+            (n) => n.path === filteredProjects[item.projectIndex].path,
+          );
+          if (originalNode && !originalNode.isExpanded) {
+            originalNode.isExpanded = true;
+            expandedPaths.add(originalNode.path);
             updateContent();
           }
         }
@@ -699,18 +705,22 @@ async function main() {
         const item = getItemAtIndex(filteredProjects, selectedIndex);
         if (item) {
           if (item.type === "project") {
-            // Toggle project expansion
-            const node = filteredProjects[item.projectIndex];
-            node.isExpanded = !node.isExpanded;
-            if (node.isExpanded) {
-              expandedPaths.add(node.path);
-            } else {
-              expandedPaths.delete(node.path);
+            // Toggle project expansion - find original node
+            const originalNode = projectNodes.find(
+              (n) => n.path === filteredProjects[item.projectIndex].path,
+            );
+            if (originalNode) {
+              originalNode.isExpanded = !originalNode.isExpanded;
+              if (originalNode.isExpanded) {
+                expandedPaths.add(originalNode.path);
+              } else {
+                expandedPaths.delete(originalNode.path);
+              }
+              updateContent();
             }
-            updateContent();
           } else if (typeof item.worktreeIndex === "number") {
             // item.type must be "worktree" at this point
-            // Switch to worktree
+            // Switch to worktree - use filteredProjects for reading data
             const node = filteredProjects[item.projectIndex];
             const wt = node.worktrees[item.worktreeIndex];
             if (wt !== undefined) {

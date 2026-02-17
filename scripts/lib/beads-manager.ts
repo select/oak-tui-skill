@@ -40,6 +40,7 @@ export function fetchBeadsIssues(workingDir?: string): BeadsIssue[] {
       encoding: "utf-8",
       timeout: 5000,
       cwd: workingDir,
+      stdio: ["pipe", "pipe", "ignore"], // Suppress stderr
     });
     return parseBeadsIssues(output);
   } catch {
@@ -57,6 +58,7 @@ export function fetchReadyIssues(workingDir?: string): BeadsIssue[] {
       encoding: "utf-8",
       timeout: 5000,
       cwd: workingDir,
+      stdio: ["pipe", "pipe", "ignore"], // Suppress stderr
     });
     return parseBeadsIssues(output);
   } catch {

@@ -32,12 +32,14 @@ function parseBeadsIssues(json: string): BeadsIssue[] {
 
 /**
  * Fetch all beads issues using bd CLI
+ * @param workingDir - Directory to execute bd command in (defaults to current directory)
  */
-export function fetchBeadsIssues(): BeadsIssue[] {
+export function fetchBeadsIssues(workingDir?: string): BeadsIssue[] {
   try {
     const output = execSync("bd list --json", {
       encoding: "utf-8",
       timeout: 5000,
+      cwd: workingDir,
     });
     return parseBeadsIssues(output);
   } catch {
@@ -47,12 +49,14 @@ export function fetchBeadsIssues(): BeadsIssue[] {
 
 /**
  * Fetch ready issues (open with no blockers)
+ * @param workingDir - Directory to execute bd command in (defaults to current directory)
  */
-export function fetchReadyIssues(): BeadsIssue[] {
+export function fetchReadyIssues(workingDir?: string): BeadsIssue[] {
   try {
     const output = execSync("bd ready --json", {
       encoding: "utf-8",
       timeout: 5000,
+      cwd: workingDir,
     });
     return parseBeadsIssues(output);
   } catch {
@@ -62,11 +66,13 @@ export function fetchReadyIssues(): BeadsIssue[] {
 
 /**
  * Group issues by status for board display
+ * @param workingDir - Directory to execute bd command in (defaults to current directory)
  */
 export function groupIssuesByStatus(
   issues: readonly BeadsIssue[],
+  workingDir?: string,
 ): GroupedIssues {
-  const readyIssues = fetchReadyIssues();
+  const readyIssues = fetchReadyIssues(workingDir);
   const readyIds = new Set(readyIssues.map((i: BeadsIssue) => i.id));
 
   const grouped: GroupedIssues = {
@@ -104,10 +110,11 @@ export function groupIssuesByStatus(
 
 /**
  * Fetch and group issues in one call
+ * @param workingDir - Directory to execute bd command in (defaults to current directory)
  */
-export function fetchAndGroupIssues(): GroupedIssues {
-  const issues = fetchBeadsIssues();
-  return groupIssuesByStatus(issues);
+export function fetchAndGroupIssues(workingDir?: string): GroupedIssues {
+  const issues = fetchBeadsIssues(workingDir);
+  return groupIssuesByStatus(issues, workingDir);
 }
 
 /**

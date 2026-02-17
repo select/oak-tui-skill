@@ -291,6 +291,28 @@ async function main() {
     visible: false,
   };
 
+  // Worktree switch handler - used by both keyboard and mouse
+  const handleWorktreeSwitch = (worktreePath: string, projectPath: string) => {
+    void import("./lib/tmux-manager").then(
+      ({
+        switchToWorktree,
+      }: Readonly<{
+        switchToWorktree: (path: string, projectPath: string) => void;
+      }>) => {
+        switchToWorktree(worktreePath, projectPath);
+        // Update active worktree path for Board tab
+        activeWorktreePath = worktreePath;
+        debug(`Active worktree set to: ${activeWorktreePath}`);
+        // Refresh board if it's the active tab
+        if (activeTab === "board") {
+          debug("Board refresh triggered by worktree switch");
+          boardIssues = fetchAndGroupIssues(activeWorktreePath);
+        }
+        updateContent();
+      },
+    );
+  };
+
   // Initialize top-level folders as expanded
   for (const node of fileTree) {
     if (node.isDirectory) {
@@ -450,6 +472,7 @@ async function main() {
         updateContent,
         selectedIndex,
         activeWorktreePath,
+        handleWorktreeSwitch,
       );
 
       // Set up auto-refresh every 5 seconds
@@ -479,6 +502,7 @@ async function main() {
           updateContent,
           selectedIndex,
           activeWorktreePath,
+          handleWorktreeSwitch,
         );
         renderer.requestRender();
       }, 5000);
@@ -815,24 +839,7 @@ async function main() {
             const node = filteredProjects[item.projectIndex];
             const wt = node.worktrees[item.worktreeIndex];
             if (wt !== undefined) {
-              void import("./lib/tmux-manager").then(
-                ({
-                  switchToWorktree,
-                }: Readonly<{
-                  switchToWorktree: (path: string, projectPath: string) => void;
-                }>) => {
-                  switchToWorktree(wt.path, node.path);
-                  // Update active worktree path for Board tab
-                  activeWorktreePath = wt.path;
-                  debug(`Active worktree set to: ${activeWorktreePath}`);
-                  // Refresh board if it's the active tab
-                  if (activeTab === "board") {
-                    debug("Board refresh triggered by worktree switch");
-                    boardIssues = fetchAndGroupIssues(activeWorktreePath);
-                  }
-                  updateContent();
-                },
-              );
+              handleWorktreeSwitch(wt.path, node.path);
             }
           }
         }

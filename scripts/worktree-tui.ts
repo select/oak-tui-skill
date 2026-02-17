@@ -35,7 +35,9 @@ import {
   saveRecentProject,
   removeRecentProject,
   getGitRoot,
+  getMainRepoPath,
   buildProjectNodes,
+  deduplicateRecentProjects,
 } from "./lib/project-manager";
 import {
   readDirectoryEntries,
@@ -227,13 +229,30 @@ async function main() {
   let currentDir = startDir;
   let gitRoot = getGitRoot(startDir) ?? startDir;
   debug("Git root:", gitRoot);
+
+  // Deduplicate recent projects on startup (resolves worktrees to main repos)
+  const dedupeCount = deduplicateRecentProjects();
+  if (dedupeCount > 0) {
+    debug(`Deduplicated ${dedupeCount} project entries on startup`);
+  }
+
   let recentProjects = loadRecentProjects();
   let projectNodes = buildProjectNodes(recentProjects, gitRoot);
   debug("Project nodes:", projectNodes.length);
   let fileTree = readDirectoryEntries(gitRoot, 0, true);
   debug("File tree entries:", fileTree.length);
 
-  saveRecentProject(gitRoot);
+  // Resolve to main repo path before saving
+  const mainRepoPath = getMainRepoPath(gitRoot);
+  if (mainRepoPath !== null && mainRepoPath !== "") {
+    saveRecentProject(mainRepoPath);
+    // Update gitRoot to main repo path for consistency
+    gitRoot = mainRepoPath;
+    // Rebuild project nodes with correct git root
+    projectNodes = buildProjectNodes(recentProjects, gitRoot);
+  } else {
+    saveRecentProject(gitRoot);
+  }
 
   const renderer = await createCliRenderer({ exitOnCtrlC: true });
   debug("Renderer created");

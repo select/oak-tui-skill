@@ -109,6 +109,39 @@ export function getGitRoot(dir: string): string | null {
 }
 
 /**
+ * Get the main repository path (resolves worktrees to main repo)
+ * If the path is a worktree, returns the main repo path.
+ * If the path is already the main repo, returns it unchanged.
+ */
+export function getMainRepoPath(dir: string): string | null {
+  try {
+    // First check if this is a git repo at all
+    const gitRoot = getGitRoot(dir);
+    if (gitRoot === null || gitRoot === "") {
+      return null;
+    }
+
+    // Get the first worktree from the list (always the main repo)
+    const output = execSync("git worktree list --porcelain", {
+      cwd: dir,
+      encoding: "utf-8",
+    });
+
+    const lines = output.trim().split("\n");
+    for (const line of lines) {
+      if (line.startsWith("worktree ")) {
+        return line.substring("worktree ".length);
+      }
+    }
+
+    // Fallback to git root if worktree list fails
+    return gitRoot;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Load recent projects from disk
  */
 export function loadRecentProjects(): RecentProject[] {
@@ -127,6 +160,7 @@ export function loadRecentProjects(): RecentProject[] {
 
 /**
  * Save a project to recent projects list
+ * Automatically resolves worktrees to their main repo path to avoid duplicates
  */
 export function saveRecentProject(projectPath: string): void {
   try {
@@ -134,15 +168,22 @@ export function saveRecentProject(projectPath: string): void {
       mkdirSync(DATA_DIR, { recursive: true });
     }
 
+    // Resolve worktrees to main repo path
+    const mainRepoPath = getMainRepoPath(projectPath);
+    if (mainRepoPath === null || mainRepoPath === "") {
+      debug("Could not resolve main repo path for:", projectPath);
+      return;
+    }
+
     const projects = loadRecentProjects();
     const existing = projects.find(
-      (p: Readonly<RecentProject>) => p.path === projectPath,
+      (p: Readonly<RecentProject>) => p.path === mainRepoPath,
     );
 
     if (existing) {
       existing.lastAccessed = Date.now();
     } else {
-      projects.push({ path: projectPath, lastAccessed: Date.now() });
+      projects.push({ path: mainRepoPath, lastAccessed: Date.now() });
     }
 
     // Keep only last 20 projects
@@ -179,6 +220,53 @@ export function removeRecentProject(projectPath: string): boolean {
   } catch (err) {
     debug("Error removing recent project:", err);
     return false;
+  }
+}
+
+/**
+ * Deduplicate recent projects by resolving worktrees to main repos
+ * Keeps the most recently accessed entry for each unique main repo
+ */
+export function deduplicateRecentProjects(): number {
+  try {
+    const projects = loadRecentProjects();
+    const mainRepoMap = new Map<string, RecentProject>();
+
+    // Resolve each project to its main repo and keep the most recent
+    for (const project of projects) {
+      const mainRepoPath = getMainRepoPath(project.path);
+      if (mainRepoPath === null || mainRepoPath === "") {
+        // Not a git repo anymore, skip it
+        continue;
+      }
+
+      const existing = mainRepoMap.get(mainRepoPath);
+      if (!existing || project.lastAccessed > existing.lastAccessed) {
+        mainRepoMap.set(mainRepoPath, {
+          path: mainRepoPath,
+          lastAccessed: project.lastAccessed,
+        });
+      }
+    }
+
+    // Convert back to array and sort by last accessed
+    const deduplicated = Array.from(mainRepoMap.values()).sort(
+      (a, b) => b.lastAccessed - a.lastAccessed,
+    );
+
+    const removedCount = projects.length - deduplicated.length;
+    if (removedCount > 0) {
+      writeFileSync(
+        RECENT_PROJECTS_FILE,
+        JSON.stringify(deduplicated, null, 2),
+      );
+      debug(`Deduplicated ${removedCount} project entries`);
+    }
+
+    return removedCount;
+  } catch (err) {
+    debug("Error deduplicating recent projects:", err);
+    return 0;
   }
 }
 

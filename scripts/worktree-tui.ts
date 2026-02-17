@@ -449,6 +449,7 @@ async function main() {
         renderCounter,
         updateContent,
         selectedIndex,
+        activeWorktreePath,
       );
 
       // Set up auto-refresh every 5 seconds
@@ -477,6 +478,7 @@ async function main() {
           renderCounter,
           updateContent,
           selectedIndex,
+          activeWorktreePath,
         );
         renderer.requestRender();
       }, 5000);
@@ -820,6 +822,14 @@ async function main() {
                   switchToWorktree: (path: string, projectPath: string) => void;
                 }>) => {
                   switchToWorktree(wt.path, node.path);
+                  // Update active worktree path for Board tab
+                  activeWorktreePath = wt.path;
+                  debug(`Active worktree set to: ${activeWorktreePath}`);
+                  // Refresh board if it's the active tab
+                  if (activeTab === "board") {
+                    debug("Board refresh triggered by worktree switch");
+                    boardIssues = fetchAndGroupIssues(activeWorktreePath);
+                  }
                   updateContent();
                 },
               );

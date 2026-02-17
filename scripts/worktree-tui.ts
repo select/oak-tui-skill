@@ -283,6 +283,7 @@ async function main() {
   };
   let boardRefreshInterval: ReturnType<typeof setInterval> | null = null;
   let projectsRefreshInterval: ReturnType<typeof setInterval> | null = null;
+  let activeWorktreePath: string | undefined; // Track active worktree for Board tab
   // Issue popup state
   let issuePopupState: IssuePopupState = {
     issue: null,
@@ -517,8 +518,8 @@ async function main() {
         ui.searchCursor.visible = boardSearchMode;
       }
 
-      // Fetch fresh issues and filter
-      boardIssues = fetchAndGroupIssues();
+      // Fetch fresh issues and filter (use active worktree path if set)
+      boardIssues = fetchAndGroupIssues(activeWorktreePath);
       const filteredIssues = filterBoardIssues(boardIssues, boardSearchQuery);
 
       // Show popup if visible, otherwise show board
@@ -562,7 +563,7 @@ async function main() {
       // Set up auto-refresh every 5 seconds (skip if popup is visible)
       boardRefreshInterval = setInterval(() => {
         if (issuePopupState.visible) return; // Don't refresh while popup is open
-        boardIssues = fetchAndGroupIssues();
+        boardIssues = fetchAndGroupIssues(activeWorktreePath);
         const refreshedFiltered = filterBoardIssues(
           boardIssues,
           boardSearchQuery,

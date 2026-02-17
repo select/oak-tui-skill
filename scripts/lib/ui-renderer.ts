@@ -418,9 +418,10 @@ export function renderProjects(
   renderCounter: number,
   onUpdate: () => void,
   selectedIndex: number = -1,
+  activeWorktreePath?: string,
 ): void {
-  // Get current active worktree path
-  const currentPath = getCurrentWorktreePath();
+  // Use activeWorktreePath if provided, otherwise fall back to current working directory
+  const currentPath = activeWorktreePath ?? getCurrentWorktreePath();
 
   if (projectNodes.length === 0) {
     const emptyText = new TextRenderable(renderer, {
@@ -438,7 +439,6 @@ export function renderProjects(
     const node = projectNodes[i];
     const isExpanded = node.isExpanded;
     const expandIcon = isExpanded ? "\u{25BC}" : "\u{25B6}";
-    const activeIndicator = node.isActive ? " \u2022" : "";
 
     const projectBox = new BoxRenderable(renderer, {
       id: `project-${renderCounter}-${i}`,
@@ -482,8 +482,8 @@ export function renderProjects(
 
     const projectName = new TextRenderable(renderer, {
       id: `project-name-${renderCounter}-${i}`,
-      content: `${node.name}${activeIndicator}`,
-      fg: node.isActive ? "#fab283" : "#eeeeee",
+      content: `${node.name}`,
+      fg: "#eeeeee",
     });
 
     projectHeader.add(expandIconText);
@@ -533,23 +533,23 @@ export function renderProjects(
           },
         });
 
-        // Check if this worktree is the current active pane (purple dot)
+        // Check if this worktree is the current active pane (purple circle)
         const isCurrentPane = currentPath === wt.path;
         // Check if this worktree has a background pane (orange dot)
         const hasBgPane = hasBackgroundPane(wt.path);
 
-        // Purple dot for current open pane, orange dot for background pane
+        // Big purple circle for current active pane, small orange dot for background pane
         let indicator = "";
         if (isCurrentPane) {
-          indicator = " \u2022"; // Small bullet in purple (color applied via fg)
+          indicator = " \u25CF"; // Big filled circle in purple
         } else if (hasBgPane) {
-          indicator = " \u2022"; // Small bullet in orange (color applied via fg)
+          indicator = " \u2022"; // Small bullet in orange
         }
 
         // Determine the indicator color
         let indicatorColor = "";
         if (isCurrentPane) {
-          indicatorColor = "#a855f7"; // Purple for current pane
+          indicatorColor = "#a855f7"; // Purple for current active pane
         } else if (hasBgPane) {
           indicatorColor = "#f97316"; // Orange for background pane
         }

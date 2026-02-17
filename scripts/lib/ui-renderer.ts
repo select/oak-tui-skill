@@ -419,6 +419,7 @@ export function renderProjects(
   onUpdate: () => void,
   selectedIndex: number = -1,
   activeWorktreePath?: string,
+  onWorktreeSwitch?: (worktreePath: string, projectPath: string) => void,
 ): void {
   // Use activeWorktreePath if provided, otherwise fall back to current working directory
   const currentPath = activeWorktreePath ?? getCurrentWorktreePath();
@@ -579,10 +580,14 @@ export function renderProjects(
           event: Readonly<{ stopPropagation: () => void }>,
         ) => {
           event.stopPropagation();
-          switchToWorktree(wt.path, node.path);
-          void Promise.resolve().then(() => {
-            onUpdate();
-          });
+          if (onWorktreeSwitch) {
+            onWorktreeSwitch(wt.path, node.path);
+          } else {
+            switchToWorktree(wt.path, node.path);
+            void Promise.resolve().then(() => {
+              onUpdate();
+            });
+          }
         };
 
         // Create a row for name + indicator

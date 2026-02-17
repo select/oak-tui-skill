@@ -78,9 +78,9 @@ import {
 import type { GroupedIssues, ReadonlyBeadsIssue } from "./lib/types";
 import { initTmuxManager, setDebugFn } from "./lib/tmux-manager";
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
-  appendFileSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
@@ -91,7 +91,7 @@ import { execSync } from "node:child_process";
 // Debug logging - must be defined before setDebugFn
 const DEBUG = process.argv.includes("--debug");
 const CHECK_ONLY = process.argv.includes("--check-only");
-const DEBUG_LOG_PATH = `${homedir()}/.local/share/git-worktree-manager/debug.log`;
+const DEBUG_LOG_PATH = `${homedir()}/.local/share/oak-tui/debug.log`;
 
 function debug(...args: readonly unknown[]): void {
   if (!DEBUG) return;
@@ -109,7 +109,7 @@ function debug(...args: readonly unknown[]): void {
 }
 
 // UI state persistence
-const DATA_DIR = join(homedir(), ".local/share/git-worktree-manager");
+const DATA_DIR = join(homedir(), ".local", "share", "oak-tui");
 const UI_STATE_PATH = join(DATA_DIR, "ui-state.json");
 
 function loadUIState(): { activeTab?: TabId } {

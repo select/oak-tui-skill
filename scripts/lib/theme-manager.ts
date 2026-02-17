@@ -5,7 +5,7 @@ import type { Theme } from "./types";
 import { allThemes } from "./themes";
 
 // Config file path
-const DATA_DIR = join(homedir(), ".local", "share", "git-worktree-manager");
+const DATA_DIR = join(homedir(), ".local", "share", "oak-tui");
 const CONFIG_FILE = join(DATA_DIR, "config.json");
 
 // Theme registry

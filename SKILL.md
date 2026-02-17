@@ -10,7 +10,7 @@ A TUI-based git worktree manager that opens in a tmux pane, showing recent proje
 ## Variables
 
 SKILL_DIR: The directory containing this skill
-DATA_FILE: ~/.local/share/git-worktree-manager/recent-projects.json
+DATA_FILE: ~/.local/share/oak-tui/recent-projects.json
 
 ## Instructions
 
@@ -88,10 +88,10 @@ To enable debug logging for the TUI itself, pass the `--debug` flag to the TUI:
 bun run scripts/worktree-tui.ts --debug
 ```
 
-Debug logs are written to `~/.local/share/git-worktree-manager/debug.log`. View them with:
+Debug logs are written to `~/.local/share/oak-tui/debug.log`. View them with:
 
 ```bash
-tail -f ~/.local/share/git-worktree-manager/debug.log
+tail -f ~/.local/share/oak-tui/debug.log
 ```
 
 ### Single Instance

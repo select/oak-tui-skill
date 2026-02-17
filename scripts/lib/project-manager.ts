@@ -6,7 +6,7 @@ import { join, basename } from "path";
 import { homedir } from "os";
 import type { Worktree, ProjectNode } from "./types";
 
-const DATA_DIR = join(homedir(), ".local", "share", "git-worktree-manager");
+const DATA_DIR = join(homedir(), ".local", "share", "oak-tui");
 const RECENT_PROJECTS_FILE = join(DATA_DIR, "recent-projects.json");
 
 interface RecentProject {

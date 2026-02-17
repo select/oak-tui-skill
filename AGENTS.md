@@ -29,7 +29,7 @@ bun install
 ~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --check-only
 
 # View debug logs
-tail -f ~/.local/share/git-worktree-manager/debug.log
+tail -f ~/.local/share/oak-tui/debug.log
 ```
 
 ### No Tests Currently
@@ -196,7 +196,7 @@ renderer.requestRender();
 
 ### Data Storage
 
-User data is stored in `~/.local/share/git-worktree-manager/`:
+User data is stored in `~/.local/share/oak-tui/`:
 
 - `recent-projects.json` - List of recently accessed project paths
 - `debug.log` - Debug output when `--debug` flag is used
@@ -234,7 +234,7 @@ Use these colors for consistency with OpenCode:
 
    ```bash
    ~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --dev --debug
-   tail -f ~/.local/share/git-worktree-manager/debug.log
+   tail -f ~/.local/share/oak-tui/debug.log
    ```
 
 2. **Tmux capture** - Capture the current tmux pane content:
@@ -275,7 +275,6 @@ debugLog(
 );
 debugLog(`Issue data: ${JSON.stringify(issue, null, 2)}`);
 ```
-
 
 # 🚨 SESSION CLOSE PROTOCOL 🚨
 

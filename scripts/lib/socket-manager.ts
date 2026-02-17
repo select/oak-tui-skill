@@ -8,19 +8,38 @@ import { homedir } from "os";
 const DATA_DIR = join(homedir(), ".local", "share", "git-worktree-manager");
 const SOCKET_FILE = join(DATA_DIR, "tui.sock");
 
-export function debug(...args: unknown[]): void {
+export function debug(..._args: readonly unknown[]): void {
   // Will be injected by main app
 }
 
-export function setDebugFn(fn: (...args: unknown[]) => void): void {
+export function setDebugFn(fn: (...args: readonly unknown[]) => void): void {
   Object.assign(debug, fn);
+}
+
+interface SocketMessage {
+  command?: string;
+  dir?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isSocketMessage(value: unknown): value is SocketMessage {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const hasValidCommand =
+    !("command" in value) || typeof value.command === "string";
+  const hasValidDir = !("dir" in value) || typeof value.dir === "string";
+  return hasValidCommand && hasValidDir;
 }
 
 /**
  * Check if an existing instance is running
  * Returns: "none" = no existing instance, "connected" = found existing instance, "stale" = stale socket cleaned up
  */
-export function checkExistingInstance(): Promise<
+export async function checkExistingInstance(): Promise<
   "none" | "connected" | "stale"
 > {
   debug("checkExistingInstance called");
@@ -46,7 +65,7 @@ export function checkExistingInstance(): Promise<
       resolve("connected");
     });
 
-    client.on("error", (err) => {
+    client.on("error", (err: Readonly<Error>) => {
       clearTimeout(timeout);
       debug("Connection error:", err.message);
       // Socket file exists but no server - clean it up
@@ -62,7 +81,7 @@ export function checkExistingInstance(): Promise<
 /**
  * Send reload command to existing instance
  */
-export function sendReloadCommand(dir: string): Promise<boolean> {
+export async function sendReloadCommand(dir: string): Promise<boolean> {
   debug("sendReloadCommand called with dir:", dir);
   return new Promise((resolve) => {
     const client = createConnection(SOCKET_FILE);
@@ -80,12 +99,32 @@ export function sendReloadCommand(dir: string): Promise<boolean> {
       resolve(true);
     });
 
-    client.on("error", (err) => {
+    client.on("error", (err: Readonly<Error>) => {
       debug("Error sending reload command:", err.message);
       clearTimeout(timeout);
       resolve(false);
     });
   });
+}
+
+function handleSocketData(
+  dataStr: string,
+  onReload: (dir: string) => void,
+): void {
+  try {
+    const parsed: unknown = JSON.parse(dataStr);
+    if (!isSocketMessage(parsed)) {
+      return;
+    }
+    debug("Received message:", parsed);
+
+    if (parsed.command === "reload" && typeof parsed.dir === "string") {
+      debug("Reload command received for dir:", parsed.dir);
+      onReload(parsed.dir);
+    }
+  } catch (err) {
+    debug("Error parsing socket message:", err);
+  }
 }
 
 /**
@@ -104,24 +143,18 @@ export function createSocketServer(onReload: (dir: string) => void): void {
     }
   }
 
-  const server = createServer((socket: Socket) => {
+  const server = createServer((socket: Readonly<Socket>) => {
     debug("Client connected to socket server");
 
-    socket.on("data", (data) => {
-      try {
-        const message = JSON.parse(data.toString());
-        debug("Received message:", message);
+    // Set encoding to receive string data instead of Buffer
+    socket.setEncoding("utf-8");
 
-        if (message.command === "reload" && message.dir) {
-          debug("Reload command received for dir:", message.dir);
-          onReload(message.dir);
-        }
-      } catch (err) {
-        debug("Error parsing socket message:", err);
-      }
+    // Data handler receives string directly due to setEncoding
+    socket.on("data", (dataStr: string) => {
+      handleSocketData(dataStr, onReload);
     });
 
-    socket.on("error", (err) => {
+    socket.on("error", (err: Readonly<Error>) => {
       debug("Socket error:", err);
     });
   });
@@ -130,7 +163,7 @@ export function createSocketServer(onReload: (dir: string) => void): void {
     debug("Socket server listening on:", SOCKET_FILE);
   });
 
-  server.on("error", (err) => {
+  server.on("error", (err: Readonly<Error>) => {
     debug("Socket server error:", err);
   });
 

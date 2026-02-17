@@ -1,0 +1,44 @@
+{
+	"$schema": "https://opencode.ai/config.json",
+	// === MCP Servers ===
+	// "mcp": {
+	//   "TypeSlayer": {
+	//     "type": "local",
+	//     "command": ["pnpm", "dlx", "typeslayer", "mcp"],
+	//     "enabled": true,
+	//   },
+	// },
+	// === Permissions ===
+	"permission": {
+		"doom_loop": "ask",
+		"edit": {
+			"eslint.config.ts": "ask",
+		},
+		"bash": {
+			"git restore *": "ask",
+		},
+	},
+	// === Models ===
+	"provider": {
+		"google": {
+			"models": {
+				"gemini-3-flash-preview": {
+					"limit": {
+						"context": 300000,
+						"output": 65536,
+					},
+				},
+			},
+		},
+		"amazon-bedrock": {
+			"models": {
+				"anthropic.claude-sonnet-4-5-20250929-v1:0": {
+					"limit": {
+						"context": 120000,
+						"output": 64000,
+					},
+				},
+			},
+		},
+	},
+}

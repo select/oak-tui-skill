@@ -17,13 +17,13 @@ const backgroundPanes = new Map<string, BackgroundPane>();
 let oakPaneId: string | null = null;
 
 // Debug function (can be overridden)
-let debugFn: (...args: unknown[]) => void = () => {};
+let debugFn: (...args: readonly unknown[]) => void = () => {};
 
-export function setDebugFn(fn: (...args: unknown[]) => void): void {
+export function setDebugFn(fn: (...args: readonly unknown[]) => void): void {
   debugFn = fn;
 }
 
-function debug(...args: unknown[]): void {
+function debug(...args: readonly unknown[]): void {
   debugFn(...args);
 }
 
@@ -51,13 +51,19 @@ export function getTmuxPaneId(): string | null {
   }
 }
 
+interface PaneInfo {
+  readonly id: string;
+  readonly left: number;
+  readonly top: number;
+}
+
 /**
  * Get the leftmost pane ID at the top (the main work pane, not the TUI pane or opencode pane)
  */
 export function getLeftPaneId(): string | null {
   try {
-    const currentPane = oakPaneId || getTmuxPaneId();
-    const allPanes = execSync(
+    const currentPane = oakPaneId ?? getTmuxPaneId();
+    const allPanes: PaneInfo[] = execSync(
       "tmux list-panes -F '#{pane_id} #{pane_left} #{pane_top}'",
       {
         encoding: "utf-8",
@@ -76,11 +82,15 @@ export function getLeftPaneId(): string | null {
 
     debug(
       "All panes:",
-      allPanes.map((p) => `${p.id}(left=${p.left},top=${p.top})`).join(", "),
+      allPanes
+        .map((p: Readonly<PaneInfo>) => `${p.id}(left=${p.left},top=${p.top})`)
+        .join(", "),
     );
     debug("Oak pane (excluded):", currentPane);
 
-    const panes = allPanes.filter((p) => p.id !== currentPane); // Exclude TUI pane
+    const panes = allPanes.filter(
+      (p: Readonly<PaneInfo>) => p.id !== currentPane,
+    ); // Exclude TUI pane
 
     if (panes.length === 0) {
       debug("No panes left after filtering out TUI pane");
@@ -89,17 +99,21 @@ export function getLeftPaneId(): string | null {
 
     // Find the topmost-leftmost pane (the main work pane)
     // First filter to panes at the top (top = 0), then find leftmost
-    const topPanes = panes.filter((p) => p.top === 0);
+    const topPanes = panes.filter((p: Readonly<PaneInfo>) => p.top === 0);
     if (topPanes.length > 0) {
-      topPanes.sort((a, b) => a.left - b.left);
-      debug("Found top-left pane:", topPanes[0].id);
-      return topPanes[0].id;
+      const sortedTopPanes = [...topPanes].sort(
+        (a: Readonly<PaneInfo>, b: Readonly<PaneInfo>) => a.left - b.left,
+      );
+      debug("Found top-left pane:", sortedTopPanes[0].id);
+      return sortedTopPanes[0].id;
     }
 
     // Fallback: just find leftmost pane
-    panes.sort((a, b) => a.left - b.left);
-    debug("Fallback to leftmost pane:", panes[0].id);
-    return panes[0].id;
+    const sortedPanes = [...panes].sort(
+      (a: Readonly<PaneInfo>, b: Readonly<PaneInfo>) => a.left - b.left,
+    );
+    debug("Fallback to leftmost pane:", sortedPanes[0].id);
+    return sortedPanes[0].id;
   } catch (err) {
     debug("Error getting left pane:", err);
     return null;
@@ -123,21 +137,6 @@ function paneExists(paneId: string): boolean {
 }
 
 /**
- * Get all panes in the current window
- */
-function getWindowPanes(): string[] {
-  try {
-    return execSync("tmux list-panes -F '#{pane_id}'", {
-      encoding: "utf-8",
-    })
-      .trim()
-      .split("\n");
-  } catch {
-    return [];
-  }
-}
-
-/**
  * Check if worktree has a background pane
  */
 export function hasBackgroundPane(worktreePath: string): boolean {
@@ -153,7 +152,7 @@ export function hasBackgroundPane(worktreePath: string): boolean {
  */
 export function getCurrentWorktreePath(): string | null {
   const leftPaneId = getLeftPaneId();
-  if (!leftPaneId) return null;
+  if (leftPaneId == null) return null;
 
   try {
     const paneCwd = execSync(
@@ -205,7 +204,7 @@ export function switchToWorktree(
   // Create a new pane for this worktree
   debug("Creating new pane for:", worktreePath);
 
-  if (!leftPaneId) {
+  if (leftPaneId == null) {
     // No left pane, just create one
     createPaneAtPath(worktreePath, projectPath);
     return;
@@ -226,7 +225,7 @@ export function switchToWorktree(
     debug("Left pane cwd before move:", paneCwd);
 
     // Capture oak pane width BEFORE any operations so we can restore it
-    const oakPane = oakPaneId || getTmuxPaneId();
+    const oakPane = oakPaneId ?? getTmuxPaneId();
     const oakPaneWidth = execSync(
       `tmux display-message -p -t ${oakPane} '#{pane_width}'`,
       { encoding: "utf-8" },
@@ -306,28 +305,13 @@ function ensureBackgroundSession(): void {
 }
 
 /**
- * Ensure the background window exists (legacy - not used)
- */
-function ensureBackgroundWindow(): void {
-  try {
-    execSync("tmux list-windows -F '#{window_name}' | grep -q '^oak-bg$'", {
-      encoding: "utf-8",
-    });
-  } catch {
-    // Background window doesn't exist, create it
-    debug("Creating background window");
-    execSync("tmux new-window -d -n 'oak-bg'");
-  }
-}
-
-/**
  * Create a new pane at the specified path
  */
-function createPaneAtPath(worktreePath: string, projectPath: string): void {
+function createPaneAtPath(worktreePath: string, _projectPath: string): void {
   debug("Creating pane at:", worktreePath);
 
   try {
-    const oakPane = oakPaneId || getTmuxPaneId();
+    const oakPane = oakPaneId ?? getTmuxPaneId();
 
     // Create a new pane to the left of oak, at the worktree path
     execSync(`tmux split-window -h -b -t ${oakPane} -c "${worktreePath}"`);
@@ -362,7 +346,7 @@ function recoverBackgroundPane(
       return;
     }
 
-    if (currentLeftPaneId) {
+    if (currentLeftPaneId != null && currentLeftPaneId !== "") {
       // IMPORTANT: Capture cwd and dimensions BEFORE any pane operations
       // because pane IDs can shift after join-pane/break-pane
       const paneCwd = execSync(
@@ -379,7 +363,7 @@ function recoverBackgroundPane(
       debug("Current left pane width:", paneWidth);
 
       // Capture oak pane width BEFORE any operations so we can restore it
-      const oakPane = oakPaneId || getTmuxPaneId();
+      const oakPane = oakPaneId ?? getTmuxPaneId();
       const oakPaneWidth = execSync(
         `tmux display-message -p -t ${oakPane} '#{pane_width}'`,
         { encoding: "utf-8" },
@@ -431,7 +415,7 @@ function recoverBackgroundPane(
       saveBackgroundPanes();
     } else {
       // No current left pane, just move the background pane to main window
-      const oakPane = oakPaneId || getTmuxPaneId();
+      const oakPane = oakPaneId ?? getTmuxPaneId();
       execSync(`tmux move-pane -h -b -t ${oakPane} -s ${bgPane.paneId}`);
 
       // Remove the recovered pane from tracking
@@ -449,17 +433,28 @@ function recoverBackgroundPane(
 }
 
 /**
+ * Type guard for background panes data
+ */
+function isBackgroundPanesData(
+  data: unknown,
+): data is Readonly<Record<string, BackgroundPane>> {
+  return typeof data === "object" && data !== null;
+}
+
+/**
  * Load background panes from file
  */
 function loadBackgroundPanes(): void {
   try {
     if (existsSync(BG_PANES_FILE)) {
-      const data = JSON.parse(readFileSync(BG_PANES_FILE, "utf-8"));
-      backgroundPanes.clear();
-      for (const [key, value] of Object.entries(data)) {
-        backgroundPanes.set(key, value as BackgroundPane);
+      const rawData: unknown = JSON.parse(readFileSync(BG_PANES_FILE, "utf-8"));
+      if (isBackgroundPanesData(rawData)) {
+        backgroundPanes.clear();
+        for (const [key, value] of Object.entries(rawData)) {
+          backgroundPanes.set(key, value);
+        }
+        debug("Loaded background panes:", backgroundPanes.size);
       }
-      debug("Loaded background panes:", backgroundPanes.size);
     }
   } catch (err) {
     debug("Error loading background panes:", err);
@@ -517,7 +512,7 @@ export function switchToProject(projectPath: string): void {
   debug("switchToProject (legacy):", projectPath);
 
   const leftPaneId = getLeftPaneId();
-  if (!leftPaneId) {
+  if (leftPaneId == null) {
     debug("Could not find left pane");
     return;
   }

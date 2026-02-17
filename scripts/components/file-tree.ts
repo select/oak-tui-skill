@@ -19,6 +19,16 @@ export interface FileTreeNode {
   children?: FileTreeNode[];
 }
 
+// Readonly version for function parameters
+export interface ReadonlyFileTreeNode {
+  readonly name: string;
+  readonly path: string;
+  readonly isDirectory: boolean;
+  readonly isSymlink: boolean;
+  readonly depth: number;
+  readonly children?: readonly ReadonlyFileTreeNode[];
+}
+
 // Directories to always ignore (too large/not useful)
 const IGNORED_DIRS = new Set([
   "node_modules",
@@ -119,7 +129,7 @@ export function readDirectoryEntries(
 
 // Load children for a specific node (lazy loading)
 export function loadNodeChildren(
-  node: FileTreeNode,
+  node: ReadonlyFileTreeNode,
   showHidden = true,
 ): FileTreeNode[] {
   if (!node.isDirectory) return [];
@@ -165,24 +175,36 @@ export function fuzzyMatch(
   const results = fuse.search(pattern);
   if (results.length > 0) {
     // Convert Fuse score (0 = perfect, 1 = no match) to our score (higher = better)
-    const score = Math.round((1 - (results[0].score || 0)) * 100);
+    const score = Math.round((1 - (results[0].score ?? 0)) * 100);
     return { match: true, score };
   }
 
   return { match: false, score: 0 };
 }
 
+// Convert a readonly node to a mutable FileTreeNode (deep copy)
+function toMutableNode(node: ReadonlyFileTreeNode): FileTreeNode {
+  return {
+    name: node.name,
+    path: node.path,
+    isDirectory: node.isDirectory,
+    isSymlink: node.isSymlink,
+    depth: node.depth,
+    children: node.children ? node.children.map(toMutableNode) : undefined,
+  };
+}
+
 // Filter file tree based on search pattern
 export function filterFileTree(
-  nodes: FileTreeNode[],
+  nodes: readonly ReadonlyFileTreeNode[],
   pattern: string,
 ): FileTreeNode[] {
-  if (!pattern) return nodes;
+  if (!pattern) return nodes.map(toMutableNode);
 
   const results: FileTreeNode[] = [];
 
   function searchNode(
-    node: FileTreeNode,
+    node: ReadonlyFileTreeNode,
     parentMatches: boolean,
   ): FileTreeNode | null {
     const { match } = fuzzyMatch(pattern, node.name);
@@ -217,13 +239,13 @@ export function filterFileTree(
 
 // Flatten file tree for rendering, respecting expanded state
 export function flattenFileTree(
-  nodes: FileTreeNode[],
-  expandedPaths: Set<string>,
+  nodes: readonly ReadonlyFileTreeNode[],
+  expandedPaths: ReadonlySet<string>,
   searchFilter: string,
-): FileTreeNode[] {
-  const result: FileTreeNode[] = [];
+): ReadonlyFileTreeNode[] {
+  const result: ReadonlyFileTreeNode[] = [];
 
-  function traverse(nodeList: FileTreeNode[]) {
+  function traverse(nodeList: readonly ReadonlyFileTreeNode[]) {
     for (const node of nodeList) {
       result.push(node);
       // Show children if expanded OR if there's a search filter (show all matches)
@@ -262,9 +284,9 @@ export function createFileTreeState(rootDir: string): FileTreeState {
 
 // Render file tree into a ScrollBox
 export function renderFileTree(
-  renderer: CliRenderer,
-  contentScroll: ScrollBoxRenderable,
-  state: FileTreeState,
+  renderer: Readonly<CliRenderer>,
+  contentScroll: Readonly<ScrollBoxRenderable>,
+  state: Readonly<FileTreeState>,
   renderCounter: number,
   onToggleFolder: (path: string) => void,
 ): void {
@@ -294,7 +316,7 @@ export function renderFileTree(
   }
 
   // Render each file/folder
-  flatFiles.forEach((file, i) => {
+  flatFiles.forEach((file: ReadonlyFileTreeNode, i) => {
     const isExpanded = state.expandedPaths.has(file.path);
     const indent = "  ".repeat(file.depth);
     const expandIcon = file.isDirectory ? (isExpanded ? "▼ " : "▶ ") : "  ";
@@ -311,7 +333,7 @@ export function renderFileTree(
     const fileText = new TextRenderable(renderer, {
       id: `file-${renderCounter}-${i}`,
       content: `${indent}${expandIcon}${icon} ${file.name}${symlinkIndicator}`,
-      fg: hiddenDim || (file.isDirectory ? "#61afef" : "#abb2bf"),
+      fg: hiddenDim ?? (file.isDirectory ? "#61afef" : "#abb2bf"),
     });
 
     fileBox.add(fileText);
@@ -320,7 +342,7 @@ export function renderFileTree(
     // Add click handler for directories
     if (file.isDirectory) {
       const filePath = file.path;
-      fileBox.onMouse = (event: MouseEvent) => {
+      fileBox.onMouse = (event: Readonly<MouseEvent>) => {
         try {
           if (event.type === "down") {
             event.stopPropagation();

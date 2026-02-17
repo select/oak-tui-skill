@@ -5,16 +5,22 @@ import {
   createTextAttributes,
   type CliRenderer,
 } from "@opentui/core";
-import Fuse from "fuse.js";
-import type { ProjectNode, Theme, GroupedIssues, BeadsIssue } from "./types";
-import type { FileTreeNode } from "../components/file-tree";
+import Fuse, { type FuseResult } from "fuse.js";
+import type {
+  ProjectNode,
+  ReadonlyProjectNode,
+  Theme,
+  GroupedIssues,
+  BeadsIssue,
+} from "./types";
+import type {
+  FileTreeNode,
+  ReadonlyFileTreeNode,
+} from "../components/file-tree";
 import {
   getPriorityIcon,
-  getPriorityLabel,
   getPriorityColor,
   getTypeColor,
-  getTypeIcon,
-  capitalize,
 } from "./beads-manager";
 import {
   switchToWorktree,
@@ -22,11 +28,13 @@ import {
   getCurrentWorktreePath,
 } from "./tmux-manager";
 import { basename } from "node:path";
-import { ensureChildrenLoaded, filterFileTree } from "../components/file-tree";
+import { filterFileTree } from "../components/file-tree";
 import { currentTheme } from "./theme-manager";
 
 // Helper to count total selectable items (projects + their worktrees if expanded)
-export function getSelectableCount(projectNodes: ProjectNode[]): number {
+export function getSelectableCount(
+  projectNodes: readonly ReadonlyProjectNode[],
+): number {
   let count = 0;
   for (const node of projectNodes) {
     count++; // Project header
@@ -39,7 +47,7 @@ export function getSelectableCount(projectNodes: ProjectNode[]): number {
 
 // Helper to get the item at a given flat index
 export function getItemAtIndex(
-  projectNodes: ProjectNode[],
+  projectNodes: readonly ReadonlyProjectNode[],
   index: number,
 ): {
   type: "project" | "worktree";
@@ -64,65 +72,90 @@ export function getItemAtIndex(
   return null;
 }
 
+// Helper to convert readonly file tree node to mutable
+function toMutableFileTree(node: ReadonlyFileTreeNode): FileTreeNode {
+  return {
+    name: node.name,
+    path: node.path,
+    isDirectory: node.isDirectory,
+    isSymlink: node.isSymlink,
+    depth: node.depth,
+    children: node.children?.map(toMutableFileTree),
+  };
+}
+
 // Helper to count total visible files (respecting expanded state and search filter)
 export function getFilesSelectableCount(
-  fileTree: FileTreeNode[],
+  fileTree: readonly ReadonlyFileTreeNode[],
   searchQuery: string,
-  expandedPaths: Set<string>,
+  expandedPaths: ReadonlySet<string>,
 ): number {
   const filteredTree = searchQuery
     ? filterFileTree(fileTree, searchQuery)
-    : fileTree;
+    : fileTree.map(toMutableFileTree);
   const flatFiles = flattenFileTree(filteredTree, !searchQuery, expandedPaths);
   return flatFiles.length;
 }
 
 // Helper to get file at a given flat index
 export function getFileAtIndex(
-  fileTree: FileTreeNode[],
+  fileTree: readonly ReadonlyFileTreeNode[],
   searchQuery: string,
-  expandedPaths: Set<string>,
+  expandedPaths: ReadonlySet<string>,
   index: number,
 ): FileTreeNode | null {
   const filteredTree = searchQuery
     ? filterFileTree(fileTree, searchQuery)
-    : fileTree;
+    : fileTree.map(toMutableFileTree);
   const flatFiles = flattenFileTree(filteredTree, !searchQuery, expandedPaths);
-  return flatFiles[index] || null;
+  return flatFiles[index] ?? null;
 }
 
 // Filter projects by search query using fuzzy search
 export function filterProjects(
-  projectNodes: ProjectNode[],
+  projectNodes: readonly ReadonlyProjectNode[],
   searchQuery: string,
 ): ProjectNode[] {
-  if (!searchQuery) return projectNodes;
-  const fuse = new Fuse(projectNodes, {
+  // Convert readonly to mutable copy
+  const toMutable = (node: ReadonlyProjectNode): ProjectNode => ({
+    path: node.path,
+    name: node.name,
+    worktrees: [...node.worktrees],
+    isExpanded: node.isExpanded,
+    isActive: node.isActive,
+  });
+
+  if (!searchQuery) return projectNodes.map(toMutable);
+  const fuse = new Fuse(projectNodes.map(toMutable), {
     keys: ["name", "worktrees.branch"],
     threshold: 0.4,
     ignoreLocation: true,
   });
   // Auto-expand matching projects to show worktrees
-  return fuse.search(searchQuery).map((result) => ({
-    ...result.item,
-    isExpanded: true,
-  }));
+  return fuse
+    .search(searchQuery)
+    .map((result: Readonly<FuseResult<ProjectNode>>) => ({
+      ...result.item,
+      isExpanded: true,
+    }));
 }
 
 // Filter board issues by search query using fuzzy search
 export function filterBoardIssues(
-  grouped: GroupedIssues,
+  grouped: Readonly<GroupedIssues>,
   searchQuery: string,
 ): GroupedIssues {
-  if (!searchQuery) return grouped;
-  const filterIssues = (issues: BeadsIssue[]) => {
+  if (!searchQuery) return { ...grouped };
+  const filterIssues = (issues: readonly BeadsIssue[]) => {
     if (issues.length === 0) return [];
-    const fuse = new Fuse(issues, {
+    const fuse = new Fuse([...issues], {
       keys: ["title", "id"],
       threshold: 0.4,
       ignoreLocation: true,
     });
-    return fuse.search(searchQuery).map((result) => result.item);
+    return fuse
+      .search(searchQuery)
+      .map((result: Readonly<FuseResult<BeadsIssue>>) => result.item);
   };
   return {
     in_progress: filterIssues(grouped.in_progress),
@@ -154,6 +187,7 @@ export interface RenderState {
   renderCounter: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/prefer-readonly-parameter-types -- CliRenderer is a mutable external library type
 export function createUIComponents(renderer: CliRenderer): UIComponents {
   const theme = currentTheme();
 
@@ -357,6 +391,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
 /**
  * Update UI component colors based on current theme
  */
+// eslint-disable-next-line @typescript-eslint/prefer-readonly-parameter-types -- UIComponents contains mutable renderables
 export function updateUIColors(ui: UIComponents): void {
   const theme = currentTheme();
 
@@ -369,12 +404,13 @@ export function updateUIColors(ui: UIComponents): void {
 
   // Footer (darker panel)
   ui.footerBox.backgroundColor = theme.colors.backgroundPanel;
-  const footerText = ui.footerBox.getChildren()[0] as TextRenderable;
-  if (footerText) {
-    footerText.fg = theme.colors.textMuted;
+  const footerChild = ui.footerBox.getChildren()[0];
+  if (footerChild instanceof TextRenderable) {
+    footerChild.fg = theme.colors.textMuted;
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/prefer-readonly-parameter-types -- CliRenderer and ScrollBoxRenderable are mutable external types, projectNodes is mutated for expand state
 export function renderProjects(
   renderer: CliRenderer,
   contentScroll: ScrollBoxRenderable,
@@ -398,7 +434,8 @@ export function renderProjects(
 
   let flatIndex = 0; // Track flat index for keyboard selection
 
-  projectNodes.forEach((node, i) => {
+  for (let i = 0; i < projectNodes.length; i++) {
+    const node = projectNodes[i];
     const isExpanded = node.isExpanded;
     const expandIcon = isExpanded ? "\u{25BC}" : "\u{25B6}";
     const activeIndicator = node.isActive ? " \u2022" : "";
@@ -422,13 +459,17 @@ export function renderProjects(
       onMouseOver: () => {
         if (!projectIsSelected) {
           projectHeader.backgroundColor = "#3a3a3a";
-          setTimeout(() => renderer.requestRender(), 0);
+          void Promise.resolve().then(() => {
+            renderer.requestRender();
+          });
         }
       },
       onMouseOut: () => {
         if (!projectIsSelected) {
           projectHeader.backgroundColor = undefined;
-          setTimeout(() => renderer.requestRender(), 0);
+          void Promise.resolve().then(() => {
+            renderer.requestRender();
+          });
         }
       },
     });
@@ -448,17 +489,22 @@ export function renderProjects(
     projectHeader.add(expandIconText);
     projectHeader.add(projectName);
 
-    projectHeader.onMouseDown = (event) => {
+    projectHeader.onMouseDown = (
+      event: Readonly<{ stopPropagation: () => void }>,
+    ) => {
       event.stopPropagation();
       // Only toggle expand, don't switch project
       node.isExpanded = !node.isExpanded;
-      setTimeout(() => onUpdate(), 0);
+      void Promise.resolve().then(() => {
+        onUpdate();
+      });
     };
 
     projectBox.add(projectHeader);
 
     if (isExpanded && node.worktrees.length > 0) {
-      node.worktrees.forEach((wt, wtIdx) => {
+      for (let wtIdx = 0; wtIdx < node.worktrees.length; wtIdx++) {
+        const wt = node.worktrees[wtIdx];
         // Track if this worktree is selected
         const wtIsSelected = selectedIndex === flatIndex;
         flatIndex++;
@@ -472,13 +518,17 @@ export function renderProjects(
           onMouseOver: () => {
             if (!wtIsSelected) {
               wtBox.backgroundColor = "#3a3a3a";
-              setTimeout(() => renderer.requestRender(), 0);
+              void Promise.resolve().then(() => {
+                renderer.requestRender();
+              });
             }
           },
           onMouseOut: () => {
             if (!wtIsSelected) {
               wtBox.backgroundColor = undefined;
-              setTimeout(() => renderer.requestRender(), 0);
+              void Promise.resolve().then(() => {
+                renderer.requestRender();
+              });
             }
           },
         });
@@ -525,10 +575,14 @@ export function renderProjects(
           fg: "#808080",
         });
 
-        wtBox.onMouseDown = (event) => {
+        wtBox.onMouseDown = (
+          event: Readonly<{ stopPropagation: () => void }>,
+        ) => {
           event.stopPropagation();
           switchToWorktree(wt.path, node.path);
-          setTimeout(() => onUpdate(), 0);
+          void Promise.resolve().then(() => {
+            onUpdate();
+          });
         };
 
         // Create a row for name + indicator
@@ -537,18 +591,18 @@ export function renderProjects(
           flexDirection: "row",
         });
         wtNameRow.add(wtName);
-        if (wtIndicator) {
+        if (wtIndicator !== null) {
           wtNameRow.add(wtIndicator);
         }
 
         wtBox.add(wtNameRow);
         wtBox.add(wtInfo);
         projectBox.add(wtBox);
-      });
+      }
     }
 
     contentScroll.add(projectBox);
-  });
+  }
 }
 
 function getFileIcon(filename: string, isDirectory: boolean): string {
@@ -563,18 +617,18 @@ function getFileIcon(filename: string, isDirectory: boolean): string {
     yml: "◈",
     yaml: "◈",
   };
-  return iconMap[ext || ""] || "○";
+  return iconMap[ext ?? ""] ?? "○";
 }
 
 function flattenFileTree(
-  nodes: FileTreeNode[],
+  nodes: readonly FileTreeNode[],
   respectExpanded = true,
-  expandedPaths: Set<string>,
+  expandedPaths: ReadonlySet<string>,
 ): FileTreeNode[] {
   const result: FileTreeNode[] = [];
   for (const node of nodes) {
     result.push(node);
-    if (node.children) {
+    if (node.children !== undefined) {
       if (!respectExpanded || expandedPaths.has(node.path)) {
         result.push(
           ...flattenFileTree(node.children, respectExpanded, expandedPaths),
@@ -585,19 +639,20 @@ function flattenFileTree(
   return result;
 }
 
+// eslint-disable-next-line @typescript-eslint/prefer-readonly-parameter-types -- CliRenderer and ScrollBoxRenderable are mutable external types
 export function renderFiles(
   renderer: CliRenderer,
   contentScroll: ScrollBoxRenderable,
-  fileTree: FileTreeNode[],
+  fileTree: readonly ReadonlyFileTreeNode[],
   searchQuery: string,
-  expandedPaths: Set<string>,
+  expandedPaths: ReadonlySet<string>,
   renderCounter: number,
   onToggleFolder: (path: string) => void,
   selectedIndex: number = -1,
 ): void {
   const filteredTree = searchQuery
     ? filterFileTree(fileTree, searchQuery)
-    : fileTree;
+    : fileTree.map(toMutableFileTree);
   const flatFiles = flattenFileTree(filteredTree, !searchQuery, expandedPaths);
 
   if (flatFiles.length === 0) {
@@ -610,10 +665,12 @@ export function renderFiles(
     return;
   }
 
-  flatFiles.forEach((file, i) => {
+  for (let i = 0; i < flatFiles.length; i++) {
+    const file = flatFiles[i];
     const indent = "  ".repeat(file.depth);
     const isExpanded = expandedPaths.has(file.path);
-    const hasChildren = file.children && file.children.length > 0;
+    const _hasChildren =
+      file.children !== undefined && file.children.length > 0;
     const isSelected = i === selectedIndex;
 
     let icon: string;
@@ -630,13 +687,17 @@ export function renderFiles(
       onMouseOver: () => {
         if (!isSelected) {
           fileBox.backgroundColor = "#3a3a3a";
-          setTimeout(() => renderer.requestRender(), 0);
+          void Promise.resolve().then(() => {
+            renderer.requestRender();
+          });
         }
       },
       onMouseOut: () => {
         if (!isSelected) {
           fileBox.backgroundColor = undefined;
-          setTimeout(() => renderer.requestRender(), 0);
+          void Promise.resolve().then(() => {
+            renderer.requestRender();
+          });
         }
       },
     });
@@ -650,16 +711,19 @@ export function renderFiles(
     fileBox.add(fileName);
 
     if (file.isDirectory) {
-      fileBox.onMouseDown = (event) => {
+      fileBox.onMouseDown = (
+        event: Readonly<{ stopPropagation: () => void }>,
+      ) => {
         event.stopPropagation();
         onToggleFolder(file.path);
       };
     }
 
     contentScroll.add(fileBox);
-  });
+  }
 }
 
+// eslint-disable-next-line @typescript-eslint/prefer-readonly-parameter-types -- ScrollBoxRenderable is a mutable external type
 export function clearContent(contentScroll: ScrollBoxRenderable): void {
   const children = contentScroll.getChildren();
   for (const child of children) {
@@ -668,15 +732,17 @@ export function clearContent(contentScroll: ScrollBoxRenderable): void {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/prefer-readonly-parameter-types -- CliRenderer and ScrollBoxRenderable are mutable external types
 export function renderThemes(
   renderer: CliRenderer,
   contentScroll: ScrollBoxRenderable,
-  themes: Theme[],
+  themes: readonly Theme[],
   currentThemeName: string,
   renderCounter: number,
   onSelectTheme: (themeName: string) => void,
 ): void {
-  themes.forEach((theme, i) => {
+  for (let i = 0; i < themes.length; i++) {
+    const theme = themes[i];
     const isSelected = theme.name === currentThemeName;
     const indicator = isSelected ? "●" : "○";
 
@@ -704,13 +770,15 @@ export function renderThemes(
     themeBox.add(themeName);
     themeBox.add(colorSwatch);
 
-    themeBox.onMouseDown = (event) => {
+    themeBox.onMouseDown = (
+      event: Readonly<{ stopPropagation: () => void }>,
+    ) => {
       event.stopPropagation();
       onSelectTheme(theme.name);
     };
 
     contentScroll.add(themeBox);
-  });
+  }
 }
 
 // Board section labels
@@ -725,14 +793,15 @@ const BOARD_SECTIONS: { key: keyof GroupedIssues; label: string }[] = [
 let lastClickTime = 0;
 let lastClickIssueId = "";
 
+// eslint-disable-next-line @typescript-eslint/prefer-readonly-parameter-types -- CliRenderer and ScrollBoxRenderable are mutable external types
 export function renderBoard(
   renderer: CliRenderer,
   contentScroll: ScrollBoxRenderable,
-  groupedIssues: GroupedIssues,
+  groupedIssues: Readonly<GroupedIssues>,
   renderCounter: number,
   selectedIndex: number,
-  onSelectIssue: (issue: BeadsIssue) => void,
-  onOpenIssue?: (issue: BeadsIssue) => void,
+  onSelectIssue: (issue: Readonly<BeadsIssue>) => void,
+  onOpenIssue?: (issue: Readonly<BeadsIssue>) => void,
 ): void {
   let flatIndex = 0;
 
@@ -837,21 +906,27 @@ export function renderBoard(
       // Mouse handlers - defer render to avoid crashes during mouse selection
       issueBox.onMouseOver = () => {
         issueBox.backgroundColor = "#3a3a3a";
-        setTimeout(() => renderer.requestRender(), 0);
+        void Promise.resolve().then(() => {
+          renderer.requestRender();
+        });
       };
 
       issueBox.onMouseOut = () => {
         issueBox.backgroundColor = isSelected ? "#3a3a3a" : undefined;
-        setTimeout(() => renderer.requestRender(), 0);
+        void Promise.resolve().then(() => {
+          renderer.requestRender();
+        });
       };
 
-      issueBox.onMouseDown = (event) => {
+      issueBox.onMouseDown = (
+        event: Readonly<{ stopPropagation: () => void }>,
+      ) => {
         event.stopPropagation();
         const now = Date.now();
         const isDoubleClick =
           now - lastClickTime < 400 && lastClickIssueId === issue.id;
 
-        if (isDoubleClick && onOpenIssue) {
+        if (isDoubleClick && onOpenIssue !== undefined) {
           onOpenIssue(issue);
         } else {
           onSelectIssue(issue);

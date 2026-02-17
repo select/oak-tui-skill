@@ -74,11 +74,45 @@ export interface BeadsIssue {
   labels?: string[];
 }
 
+// Deep readonly version of BeadsIssue
+export interface ReadonlyBeadsIssue {
+  readonly id: string;
+  readonly title: string;
+  readonly description?: string;
+  readonly status: BeadsStatus;
+  readonly priority: number;
+  readonly issue_type: BeadsType;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly dependency_count: number;
+  readonly dependent_count: number;
+  readonly assignee?: string;
+  readonly labels?: readonly string[];
+}
+
 export interface GroupedIssues {
   blocked: BeadsIssue[];
   ready: BeadsIssue[];
   in_progress: BeadsIssue[];
   closed: BeadsIssue[];
+}
+
+export interface ReadonlyGroupedIssues {
+  readonly blocked: readonly BeadsIssue[];
+  readonly ready: readonly BeadsIssue[];
+  readonly in_progress: readonly BeadsIssue[];
+  readonly closed: readonly BeadsIssue[];
+}
+
+// Deep readonly versions of types for function parameters
+export type ReadonlyWorktree = Readonly<Worktree>;
+
+export interface ReadonlyProjectNode {
+  readonly path: string;
+  readonly name: string;
+  readonly worktrees: readonly ReadonlyWorktree[];
+  readonly isExpanded: boolean;
+  readonly isActive: boolean;
 }
 
 export interface Tab {

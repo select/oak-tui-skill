@@ -1,7 +1,34 @@
 // Beads issue management - fetching and parsing issues from bd CLI
 
 import { execSync } from "node:child_process";
-import type { BeadsIssue, GroupedIssues } from "./types";
+import type { BeadsIssue, GroupedIssues, ReadonlyGroupedIssues } from "./types";
+
+/**
+ * Type guard to check if a value is a BeadsIssue
+ */
+function isBeadsIssue(value: unknown): value is BeadsIssue {
+  if (typeof value !== "object" || value === null) return false;
+  return (
+    "id" in value &&
+    "title" in value &&
+    "status" in value &&
+    typeof (value as { id: unknown }).id === "string" &&
+    typeof (value as { title: unknown }).title === "string" &&
+    typeof (value as { status: unknown }).status === "string"
+  );
+}
+
+/**
+ * Parse JSON as BeadsIssue array with proper type narrowing
+ */
+function parseBeadsIssues(json: string): BeadsIssue[] {
+  const parsed: unknown = JSON.parse(json);
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+  // Filter to only valid issues
+  return parsed.filter(isBeadsIssue);
+}
 
 /**
  * Fetch all beads issues using bd CLI
@@ -12,7 +39,7 @@ export function fetchBeadsIssues(): BeadsIssue[] {
       encoding: "utf-8",
       timeout: 5000,
     });
-    return JSON.parse(output) as BeadsIssue[];
+    return parseBeadsIssues(output);
   } catch {
     return [];
   }
@@ -27,7 +54,7 @@ export function fetchReadyIssues(): BeadsIssue[] {
       encoding: "utf-8",
       timeout: 5000,
     });
-    return JSON.parse(output) as BeadsIssue[];
+    return parseBeadsIssues(output);
   } catch {
     return [];
   }
@@ -36,9 +63,11 @@ export function fetchReadyIssues(): BeadsIssue[] {
 /**
  * Group issues by status for board display
  */
-export function groupIssuesByStatus(issues: BeadsIssue[]): GroupedIssues {
+export function groupIssuesByStatus(
+  issues: readonly BeadsIssue[],
+): GroupedIssues {
   const readyIssues = fetchReadyIssues();
-  const readyIds = new Set(readyIssues.map((i) => i.id));
+  const readyIds = new Set(readyIssues.map((i: BeadsIssue) => i.id));
 
   const grouped: GroupedIssues = {
     blocked: [],
@@ -60,7 +89,7 @@ export function groupIssuesByStatus(issues: BeadsIssue[]): GroupedIssues {
       grouped.in_progress.push(issue);
     } else if (issue.status === "blocked") {
       grouped.blocked.push(issue);
-    } else if (issue.status === "open") {
+    } else {
       // Open issues go to ready if they have no blockers
       if (readyIds.has(issue.id)) {
         grouped.ready.push(issue);
@@ -84,7 +113,7 @@ export function fetchAndGroupIssues(): GroupedIssues {
 /**
  * Get total count of issues across all groups
  */
-export function getTotalBoardCount(grouped: GroupedIssues): number {
+export function getTotalBoardCount(grouped: ReadonlyGroupedIssues): number {
   return (
     grouped.blocked.length +
     grouped.ready.length +
@@ -98,7 +127,7 @@ export function getTotalBoardCount(grouped: GroupedIssues): number {
  * Order: in_progress -> ready -> blocked -> closed (matches UI display order)
  */
 export function getIssueAtIndex(
-  grouped: GroupedIssues,
+  grouped: ReadonlyGroupedIssues,
   index: number,
 ): { issue: BeadsIssue; section: keyof GroupedIssues } | null {
   let currentIndex = 0;
@@ -136,7 +165,7 @@ export function getIssueAtIndex(
  * Get the start index of each section
  * Order: in_progress -> ready -> blocked -> closed
  */
-export function getSectionStartIndices(grouped: GroupedIssues): {
+export function getSectionStartIndices(grouped: ReadonlyGroupedIssues): {
   in_progress: number;
   ready: number;
   blocked: number;
@@ -160,11 +189,11 @@ export function getSectionStartIndices(grouped: GroupedIssues): {
  * Returns the start index of the next non-empty section, or current index if at last section
  */
 export function getNextSectionStart(
-  grouped: GroupedIssues,
+  grouped: ReadonlyGroupedIssues,
   currentIndex: number,
 ): number {
   const starts = getSectionStartIndices(grouped);
-  const total = getTotalBoardCount(grouped);
+  const _total = getTotalBoardCount(grouped);
 
   // Determine current section and find next non-empty section
   const sections: (keyof GroupedIssues)[] = [
@@ -175,7 +204,7 @@ export function getNextSectionStart(
   ];
 
   for (let i = 0; i < sections.length - 1; i++) {
-    const section = sections[i];
+    const _section = sections[i];
     const nextSection = sections[i + 1];
     const sectionEnd = starts[nextSection];
 
@@ -200,7 +229,7 @@ export function getNextSectionStart(
  * Returns the start index of the previous non-empty section, or 0 if at first section
  */
 export function getPrevSectionStart(
-  grouped: GroupedIssues,
+  grouped: ReadonlyGroupedIssues,
   currentIndex: number,
 ): number {
   const starts = getSectionStartIndices(grouped);

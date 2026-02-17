@@ -276,23 +276,22 @@ debugLog(
 debugLog(`Issue data: ${JSON.stringify(issue, null, 2)}`);
 ```
 
-# Beads Workflow Context
-
-> **Context Recovery**: Run `bd prime` after compaction, clear, or new session
-> Hooks auto-call this in Claude Code when .beads/ detected
 
 # 🚨 SESSION CLOSE PROTOCOL 🚨
 
 **CRITICAL**: Before saying "done" or "complete", you MUST run this checklist:
 
 ```
-[ ] 1. git status              (check what changed)
-[ ] 2. git add <files>         (stage code changes)
-[ ] 3. bd sync --from-main     (pull beads updates from main)
-[ ] 4. git commit -m "..."     (commit code changes)
+[ ] 1. bun lint                (check for lint and type error)
+[ ] 2. git status              (check what changed)
+[ ] 3. git add <files>         (stage code changes)
+[ ] 4. bd sync --from-main     (pull beads updates from main)
+[ ] 5. git commit -m "..."     (commit code changes)
 ```
 
 **Note:** This is an ephemeral branch (no upstream). Code is merged to main locally, not pushed.
+
+# Beads Workflow Context
 
 ## Core Rules
 

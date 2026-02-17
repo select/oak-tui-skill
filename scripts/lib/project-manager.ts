@@ -14,11 +14,28 @@ interface RecentProject {
   lastAccessed: number;
 }
 
-export function debug(...args: unknown[]): void {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isRecentProject(value: unknown): value is RecentProject {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.path === "string" && typeof value.lastAccessed === "number"
+  );
+}
+
+function isRecentProjectArray(value: unknown): value is RecentProject[] {
+  return Array.isArray(value) && value.every(isRecentProject);
+}
+
+export function debug(..._args: readonly unknown[]): void {
   // Will be injected by main app
 }
 
-export function setDebugFn(fn: (...args: unknown[]) => void): void {
+export function setDebugFn(fn: (...args: readonly unknown[]) => void): void {
   Object.assign(debug, fn);
 }
 
@@ -48,12 +65,12 @@ export function getWorktrees(gitRoot: string): Worktree[] {
       } else if (line.startsWith("prunable ")) {
         current.isPrunable = true;
       } else if (line === "") {
-        if (current.path) {
+        if (current.path !== undefined) {
           worktrees.push({
             path: current.path,
-            branch: current.branch || "detached",
-            commit: current.commit || "unknown",
-            isPrunable: current.isPrunable || false,
+            branch: current.branch ?? "detached",
+            commit: current.commit ?? "unknown",
+            isPrunable: current.isPrunable ?? false,
           });
         }
         current = {};
@@ -61,12 +78,12 @@ export function getWorktrees(gitRoot: string): Worktree[] {
     }
 
     // Handle last worktree if no trailing newline
-    if (current.path) {
+    if (current.path !== undefined) {
       worktrees.push({
         path: current.path,
-        branch: current.branch || "detached",
-        commit: current.commit || "unknown",
-        isPrunable: current.isPrunable || false,
+        branch: current.branch ?? "detached",
+        commit: current.commit ?? "unknown",
+        isPrunable: current.isPrunable ?? false,
       });
     }
 
@@ -96,7 +113,12 @@ export function getGitRoot(dir: string): string | null {
 export function loadRecentProjects(): RecentProject[] {
   try {
     if (existsSync(RECENT_PROJECTS_FILE)) {
-      return JSON.parse(readFileSync(RECENT_PROJECTS_FILE, "utf-8"));
+      const data: unknown = JSON.parse(
+        readFileSync(RECENT_PROJECTS_FILE, "utf-8"),
+      );
+      if (isRecentProjectArray(data)) {
+        return data;
+      }
     }
   } catch {}
   return [];
@@ -112,7 +134,9 @@ export function saveRecentProject(projectPath: string): void {
     }
 
     const projects = loadRecentProjects();
-    const existing = projects.find((p) => p.path === projectPath);
+    const existing = projects.find(
+      (p: Readonly<RecentProject>) => p.path === projectPath,
+    );
 
     if (existing) {
       existing.lastAccessed = Date.now();
@@ -121,7 +145,10 @@ export function saveRecentProject(projectPath: string): void {
     }
 
     // Keep only last 20 projects
-    projects.sort((a, b) => b.lastAccessed - a.lastAccessed);
+    projects.sort(
+      (a: Readonly<RecentProject>, b: Readonly<RecentProject>) =>
+        b.lastAccessed - a.lastAccessed,
+    );
     const trimmed = projects.slice(0, 20);
 
     writeFileSync(RECENT_PROJECTS_FILE, JSON.stringify(trimmed, null, 2));
@@ -137,7 +164,9 @@ export function removeRecentProject(projectPath: string): boolean {
   try {
     const projects = loadRecentProjects();
     const initialLength = projects.length;
-    const filtered = projects.filter((p) => p.path !== projectPath);
+    const filtered = projects.filter(
+      (p: Readonly<RecentProject>) => p.path !== projectPath,
+    );
 
     if (filtered.length === initialLength) {
       // Project was not found
@@ -156,7 +185,7 @@ export function removeRecentProject(projectPath: string): boolean {
  * Build hierarchical project nodes from recent projects
  */
 export function buildProjectNodes(
-  recentProjects: RecentProject[],
+  recentProjects: readonly Readonly<RecentProject>[],
   currentGitRoot: string | null,
 ): ProjectNode[] {
   const nodes: ProjectNode[] = [];

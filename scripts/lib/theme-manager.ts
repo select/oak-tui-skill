@@ -15,7 +15,7 @@ let currentThemeName = "opencode";
 /**
  * Register a theme in the registry
  */
-export function registerTheme(theme: Theme): void {
+export function registerTheme(theme: Readonly<Theme>): void {
   themes.set(theme.name, theme);
 }
 
@@ -45,7 +45,7 @@ export function setTheme(name: string): boolean {
  * Get the current theme
  */
 export function currentTheme(): Theme {
-  return themes.get(currentThemeName) || themes.get("opencode")!;
+  return themes.get(currentThemeName) ?? themes.get("opencode")!;
 }
 
 /**
@@ -83,15 +83,24 @@ export function getTheme(name: string): Theme | undefined {
 }
 
 /**
+ * Type guard to check if a value is a config object
+ */
+function isConfigObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
  * Load theme preference from config file
  */
 export function loadThemePreference(): void {
   try {
     if (existsSync(CONFIG_FILE)) {
       const data = readFileSync(CONFIG_FILE, "utf-8");
-      const config = JSON.parse(data);
-      if (config.theme && themes.has(config.theme)) {
-        currentThemeName = config.theme;
+      const parsed: unknown = JSON.parse(data);
+      if (!isConfigObject(parsed)) return;
+      const themeName = parsed.theme;
+      if (typeof themeName === "string" && themes.has(themeName)) {
+        currentThemeName = themeName;
       }
     }
   } catch {
@@ -114,7 +123,10 @@ function saveThemePreference(themeName: string): void {
     if (existsSync(CONFIG_FILE)) {
       try {
         const data = readFileSync(CONFIG_FILE, "utf-8");
-        config = JSON.parse(data);
+        const parsed: unknown = JSON.parse(data);
+        if (isConfigObject(parsed)) {
+          config = parsed;
+        }
       } catch {
         // Ignore parse errors, start fresh
       }

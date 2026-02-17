@@ -4,8 +4,28 @@ import {
   BoxRenderable,
   TextRenderable,
   createTextAttributes,
+  KeyEvent,
 } from "@opentui/core";
-import { basename } from "node:path";
+
+// Type for keyInput that properly types the event methods
+// The KeyHandler class extends EventEmitter<KeyHandlerEventMap> but TypeScript
+// doesn't recognize the generic form, so we define the interface we need
+interface KeyInputHandler {
+  on(event: "keypress", listener: (key: Readonly<KeyEvent>) => void): this;
+  on(event: "keyrelease", listener: (key: Readonly<KeyEvent>) => void): this;
+}
+
+// Type guard to safely cast renderer.keyInput to KeyInputHandler
+// This checks at runtime that the object has the expected 'on' method
+function isKeyInputHandler(value: unknown): value is KeyInputHandler {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "on" in value &&
+    typeof (value as Record<string, unknown>).on === "function"
+  );
+}
+
 import type { TabId } from "./lib/types";
 import {
   checkExistingInstance,
@@ -56,7 +76,7 @@ import {
   getNextSectionStart,
   getPrevSectionStart,
 } from "./lib/beads-manager";
-import type { GroupedIssues } from "./lib/types";
+import type { GroupedIssues, ReadonlyBeadsIssue } from "./lib/types";
 import { initTmuxManager, setDebugFn } from "./lib/tmux-manager";
 import {
   existsSync,
@@ -67,17 +87,24 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { execSync } from "node:child_process";
 
 // Debug logging - must be defined before setDebugFn
 const DEBUG = process.argv.includes("--debug");
 const CHECK_ONLY = process.argv.includes("--check-only");
 const DEBUG_LOG_PATH = `${homedir()}/.local/share/git-worktree-manager/debug.log`;
 
-function debug(...args: unknown[]): void {
+function debug(...args: readonly unknown[]): void {
   if (!DEBUG) return;
   const timestamp = new Date().toLocaleTimeString();
   const message = args
-    .map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a)))
+    .map((a) => {
+      if (typeof a === "string") return a;
+      if (typeof a === "number" || typeof a === "boolean") return String(a);
+      if (a === null) return "null";
+      if (a === undefined) return "undefined";
+      return JSON.stringify(a);
+    })
     .join(" ");
   appendFileSync(DEBUG_LOG_PATH, `[${timestamp}] ${message}\n`);
 }
@@ -90,7 +117,23 @@ function loadUIState(): { activeTab?: TabId } {
   try {
     if (existsSync(UI_STATE_PATH)) {
       const data = readFileSync(UI_STATE_PATH, "utf-8");
-      return JSON.parse(data);
+      const parsed: unknown = JSON.parse(data);
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        "activeTab" in parsed
+      ) {
+        const activeTab = (parsed as { activeTab: unknown }).activeTab;
+        if (
+          activeTab === "projects" ||
+          activeTab === "board" ||
+          activeTab === "files" ||
+          activeTab === "themes"
+        ) {
+          return { activeTab };
+        }
+      }
+      return {};
     }
   } catch (err) {
     debug("Error loading UI state:", err);
@@ -98,7 +141,7 @@ function loadUIState(): { activeTab?: TabId } {
   return {};
 }
 
-function saveUIState(state: { activeTab: TabId }): void {
+function saveUIState(state: Readonly<{ activeTab: TabId }>): void {
   try {
     if (!existsSync(DATA_DIR)) {
       mkdirSync(DATA_DIR, { recursive: true });
@@ -113,18 +156,24 @@ function saveUIState(state: { activeTab: TabId }): void {
 initThemes();
 
 // Set up debug function for tmux manager
-setDebugFn((...args: unknown[]) => {
+setDebugFn((...args: readonly unknown[]) => {
   debug("tmux:", ...args);
 });
 
 // Initialize tmux manager (load background panes)
 initTmuxManager();
 
-// Crash recovery
+// Helper type guard for Error
+function isError(value: unknown): value is Error {
+  return value instanceof Error;
+}
+
+// Crash recovery - using type guards to satisfy strict linting
 process.on("uncaughtException", (error) => {
-  console.error("\n\n❌ Crash detected:", error.message);
+  const message = isError(error) ? error.message : String(error);
+  console.error("\n\n❌ Crash detected:", message);
   console.error("\nPress 'r' to reload, or Ctrl+C to exit");
-  if (process.stdin.isTTY && process.stdin.setRawMode) {
+  if (process.stdin.isTTY) {
     process.stdin.setRawMode(true);
     process.stdin.on("data", (key) => {
       if (key.toString() === "r") {
@@ -138,7 +187,7 @@ process.on("uncaughtException", (error) => {
 process.on("unhandledRejection", (reason) => {
   console.error("\n\n❌ Unhandled rejection:", reason);
   console.error("\nPress 'r' to reload, or Ctrl+C to exit");
-  if (process.stdin.isTTY && process.stdin.setRawMode) {
+  if (process.stdin.isTTY) {
     process.stdin.setRawMode(true);
     process.stdin.on("data", (key) => {
       if (key.toString() === "r") {
@@ -177,7 +226,7 @@ async function main() {
 
   // Initialize state
   let currentDir = startDir;
-  let gitRoot = getGitRoot(startDir) || startDir;
+  let gitRoot = getGitRoot(startDir) ?? startDir;
   debug("Git root:", gitRoot);
   let recentProjects = loadRecentProjects();
   let projectNodes = buildProjectNodes(recentProjects, gitRoot);
@@ -242,7 +291,7 @@ async function main() {
     { id: "themes", label: "Themes" },
   ];
 
-  TABS.forEach((tab, i) => {
+  TABS.forEach((tab: Readonly<{ id: TabId; label: string }>, _i) => {
     const tabBox = new BoxRenderable(renderer, {
       id: `tab-${tab.id}`,
       paddingLeft: 1,
@@ -259,7 +308,9 @@ async function main() {
         activeTab === tab.id ? createTextAttributes({ bold: true }) : 0,
     });
     tabBox.add(tabText);
-    tabBox.onMouse = (event) => {
+    tabBox.onMouse = (
+      event: Readonly<{ type: string; stopPropagation: () => void }>,
+    ) => {
       if (event.type === "down") {
         event.stopPropagation();
         activeTab = tab.id;
@@ -278,7 +329,7 @@ async function main() {
     debug("=== Reloading with new directory ===");
     debug("New directory:", newDir);
     currentDir = newDir;
-    gitRoot = getGitRoot(newDir) || newDir;
+    gitRoot = getGitRoot(newDir) ?? newDir;
     debug("New git root:", gitRoot);
     recentProjects = loadRecentProjects();
     fileTree = readDirectoryEntries(gitRoot, 0, true);
@@ -342,22 +393,21 @@ async function main() {
     renderCounter++;
 
     // Update tab colors
-    TABS.forEach((tab) => {
-      const tabText = ui.tabBar
+    TABS.forEach((tab: Readonly<{ id: TabId; label: string }>) => {
+      const tabBox = ui.tabBar
         .getChildren()
-        .find((c) => c.id === `tab-${tab.id}`)
-        ?.getChildren()[0];
-      if (tabText) {
-        (tabText as TextRenderable).fg =
-          activeTab === tab.id ? "#fab283" : "#808080";
-        (tabText as TextRenderable).attributes =
+        .find((c: Readonly<{ id?: string }>) => c.id === `tab-${tab.id}`);
+      const tabText = tabBox?.getChildren()[0];
+      if (tabText !== undefined && tabText instanceof TextRenderable) {
+        tabText.fg = activeTab === tab.id ? "#fab283" : "#808080";
+        tabText.attributes =
           activeTab === tab.id ? createTextAttributes({ bold: true }) : 0;
       }
     });
 
     if (activeTab === "projects") {
       // Show search box when in search mode
-      if (projectsSearchMode || projectsSearchQuery) {
+      if (projectsSearchMode || projectsSearchQuery !== "") {
         ui.searchBoxOuter.visible = true;
         ui.searchInput.content = projectsSearchQuery;
         ui.searchPlaceholder.visible = projectsSearchQuery.length === 0;
@@ -378,7 +428,7 @@ async function main() {
       );
     } else if (activeTab === "files") {
       // Show search box only when in search mode
-      if (searchMode || searchQuery) {
+      if (searchMode || searchQuery !== "") {
         ui.searchBoxOuter.visible = true;
         ui.searchInput.content = searchQuery;
         ui.searchPlaceholder.visible = searchQuery.length === 0;
@@ -399,13 +449,15 @@ async function main() {
             expandedPaths.add(path);
             ensureChildrenLoaded(fileTree, path, true);
           }
-          setTimeout(() => updateContent(), 0);
+          setTimeout(() => {
+            updateContent();
+          }, 0);
         },
         filesSelectedIndex,
       );
     } else if (activeTab === "board") {
       // Show search box when in search mode
-      if (boardSearchMode || boardSearchQuery) {
+      if (boardSearchMode || boardSearchQuery !== "") {
         ui.searchBoxOuter.visible = true;
         ui.searchInput.content = boardSearchQuery;
         ui.searchPlaceholder.visible = boardSearchQuery.length === 0;
@@ -438,10 +490,10 @@ async function main() {
           filteredIssues,
           renderCounter,
           selectedIndex,
-          (issue) => {
+          (issue: ReadonlyBeadsIssue) => {
             debug("Selected issue:", issue.id);
           },
-          (issue) => {
+          (issue: ReadonlyBeadsIssue) => {
             // Double-click opens popup - defer to avoid crash during mouse event
             setTimeout(() => {
               debug("Opening issue popup:", issue.id);
@@ -470,10 +522,10 @@ async function main() {
           refreshedFiltered,
           renderCounter,
           selectedIndex,
-          (issue) => {
+          (issue: ReadonlyBeadsIssue) => {
             debug("Selected issue:", issue.id);
           },
-          (issue) => {
+          (issue: ReadonlyBeadsIssue) => {
             // Double-click opens popup - defer to avoid crash during mouse event
             setTimeout(() => {
               debug("Opening issue popup:", issue.id);
@@ -487,7 +539,8 @@ async function main() {
         renderer.requestRender();
         debug(`Board auto-refreshed (render ${renderCounter})`);
       }, 5000);
-    } else if (activeTab === "themes") {
+    } else {
+      // activeTab === "themes"
       renderThemes(
         renderer,
         ui.contentScroll,
@@ -497,15 +550,24 @@ async function main() {
         (themeName: string) => {
           setTheme(themeName);
           updateUIColors(ui);
-          setTimeout(() => updateContent(), 0);
+          setTimeout(() => {
+            updateContent();
+          }, 0);
         },
       );
     }
   }
 
   // Keyboard handler
-  (renderer.keyInput as any).on("keypress", (key: any) => {
-    const keyName = key.name;
+  // Use type guard to safely cast renderer.keyInput to KeyInputHandler
+  // TypeScript's EventEmitter generic doesn't expose the `on` method properly
+  // for typed event maps in the @opentui/core KeyHandler
+  if (!isKeyInputHandler(renderer.keyInput)) {
+    throw new Error("renderer.keyInput is not a valid KeyInputHandler");
+  }
+  const keyInput: KeyInputHandler = renderer.keyInput;
+  keyInput.on("keypress", (key: Readonly<KeyEvent>) => {
+    const keyName: string = key.name;
     debug(`Key pressed: ${keyName}`);
 
     if (keyName === "r") {
@@ -528,7 +590,9 @@ async function main() {
       }
     } else if (keyName === "tab" && key.shift) {
       // Shift+Tab: cycle tabs in reverse
-      const currentIndex = TABS.findIndex((t) => t.id === activeTab);
+      const currentIndex = TABS.findIndex(
+        (t: Readonly<{ id: TabId; label: string }>) => t.id === activeTab,
+      );
       const prevIndex = (currentIndex - 1 + TABS.length) % TABS.length;
       activeTab = TABS[prevIndex].id;
       saveUIState({ activeTab });
@@ -536,7 +600,9 @@ async function main() {
       updateContent();
     } else if (keyName === "tab") {
       // Tab: cycle tabs forward
-      const currentIndex = TABS.findIndex((t) => t.id === activeTab);
+      const currentIndex = TABS.findIndex(
+        (t: Readonly<{ id: TabId; label: string }>) => t.id === activeTab,
+      );
       const nextIndex = (currentIndex + 1) % TABS.length;
       activeTab = TABS[nextIndex].id;
       saveUIState({ activeTab });
@@ -554,11 +620,11 @@ async function main() {
       // Clear all search modes and queries
       if (
         searchMode ||
-        searchQuery ||
+        searchQuery !== "" ||
         projectsSearchMode ||
-        projectsSearchQuery ||
+        projectsSearchQuery !== "" ||
         boardSearchMode ||
-        boardSearchQuery
+        boardSearchQuery !== ""
       ) {
         searchMode = false;
         searchQuery = "";
@@ -643,25 +709,29 @@ async function main() {
               expandedPaths.delete(node.path);
             }
             updateContent();
-          } else if (
-            item.type === "worktree" &&
-            item.worktreeIndex !== undefined
-          ) {
+          } else if (typeof item.worktreeIndex === "number") {
+            // item.type must be "worktree" at this point
             // Switch to worktree
             const node = filteredProjects[item.projectIndex];
             const wt = node.worktrees[item.worktreeIndex];
-            if (wt) {
-              import("./lib/tmux-manager").then(({ switchToWorktree }) => {
-                switchToWorktree(wt.path, node.path);
-                updateContent();
-              });
+            if (wt !== undefined) {
+              void import("./lib/tmux-manager").then(
+                ({
+                  switchToWorktree,
+                }: Readonly<{
+                  switchToWorktree: (path: string, projectPath: string) => void;
+                }>) => {
+                  switchToWorktree(wt.path, node.path);
+                  updateContent();
+                },
+              );
             }
           }
         }
       } else if (keyName === "d") {
         // Delete project from recent list (only for project headers, not worktrees)
         const item = getItemAtIndex(filteredProjects, selectedIndex);
-        if (item && item.type === "project") {
+        if (item?.type === "project") {
           const node = filteredProjects[item.projectIndex];
           const removed = removeRecentProject(node.path);
           if (removed) {
@@ -750,9 +820,8 @@ async function main() {
         }
       } else if (keyName === "y") {
         const result = getIssueAtIndex(filteredIssues, selectedIndex);
-        if (result) {
+        if (result !== null) {
           // Copy issue ID to clipboard using xclip or xsel
-          const { execSync } = require("node:child_process");
           try {
             execSync(
               `echo -n "${result.issue.id}" | xclip -selection clipboard`,
@@ -820,7 +889,11 @@ async function main() {
             expandedPaths,
             filesSelectedIndex,
           );
-          if (file && file.isDirectory && expandedPaths.has(file.path)) {
+          if (
+            file != null &&
+            file.isDirectory &&
+            expandedPaths.has(file.path)
+          ) {
             expandedPaths.delete(file.path);
             updateContent();
           }
@@ -832,7 +905,11 @@ async function main() {
             expandedPaths,
             filesSelectedIndex,
           );
-          if (file && file.isDirectory && !expandedPaths.has(file.path)) {
+          if (
+            file != null &&
+            file.isDirectory &&
+            !expandedPaths.has(file.path)
+          ) {
             expandedPaths.add(file.path);
             ensureChildrenLoaded(fileTree, file.path, true);
             updateContent();
@@ -845,7 +922,7 @@ async function main() {
             expandedPaths,
             filesSelectedIndex,
           );
-          if (file) {
+          if (file !== null) {
             if (file.isDirectory) {
               if (expandedPaths.has(file.path)) {
                 expandedPaths.delete(file.path);
@@ -867,9 +944,8 @@ async function main() {
             expandedPaths,
             filesSelectedIndex,
           );
-          if (file) {
+          if (file !== null) {
             const relativePath = file.path.replace(currentDir + "/", "");
-            const { execSync } = require("node:child_process");
             try {
               execSync(
                 `echo -n "${relativePath}" | xclip -selection clipboard`,
@@ -908,7 +984,7 @@ async function runWithCrashRecovery() {
   } catch (error) {
     console.error("\n\n❌ Fatal error:", error);
     console.error("\nPress 'r' to reload, or Ctrl+C to exit");
-    if (process.stdin.isTTY && process.stdin.setRawMode) {
+    if (process.stdin.isTTY) {
       process.stdin.setRawMode(true);
       process.stdin.on("data", (key) => {
         if (key.toString() === "r") {
@@ -920,4 +996,4 @@ async function runWithCrashRecovery() {
   }
 }
 
-runWithCrashRecovery();
+void runWithCrashRecovery();

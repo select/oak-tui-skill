@@ -5,8 +5,9 @@ import {
   SyntaxStyle,
   RGBA,
   type CliRenderer,
+  type MouseEvent,
 } from "@opentui/core";
-import type { BeadsIssue, Theme } from "../lib/types";
+import type { BeadsIssue, Theme, ReadonlyBeadsIssue } from "../lib/types";
 import { getTypeColor } from "../lib/beads-manager";
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
@@ -22,7 +23,7 @@ function debugLog(message: string) {
 }
 
 export interface IssuePopupState {
-  issue: BeadsIssue | null;
+  issue: BeadsIssue | ReadonlyBeadsIssue | null;
   scrollOffset: number;
   visible: boolean;
 }
@@ -35,7 +36,10 @@ export function createInitialPopupState(): IssuePopupState {
   };
 }
 
-export function showPopup(state: IssuePopupState, issue: BeadsIssue): void {
+export function showPopup(
+  state: IssuePopupState,
+  issue: Readonly<BeadsIssue>,
+): void {
   state.issue = issue;
   state.scrollOffset = 0;
   state.visible = true;
@@ -86,10 +90,10 @@ function capitalizeFirst(str: string): string {
  * This replaces the board content when the popup is visible.
  */
 export function renderIssuePopup(
-  renderer: CliRenderer,
-  parent: BoxRenderable,
-  state: IssuePopupState,
-  theme: Theme,
+  renderer: Readonly<CliRenderer>,
+  parent: Readonly<BoxRenderable>,
+  state: Readonly<IssuePopupState>,
+  theme: Readonly<Theme>,
   renderCounter: number,
   onClose?: () => void,
 ): void {
@@ -142,8 +146,7 @@ export function renderIssuePopup(
       paddingLeft: 1,
       paddingRight: 1,
       backgroundColor: theme.colors.error,
-      selectable: false,
-      onMouseDown: (e) => {
+      onMouseDown: (e: MouseEvent) => {
         debugLog("Close button clicked!");
         e.stopPropagation();
         setTimeout(() => {
@@ -181,7 +184,7 @@ export function renderIssuePopup(
   // Metadata line
   const metaLine = new TextRenderable(renderer, {
     id: `popup-meta-${renderCounter}`,
-    content: `Status: ${STATUS_LABELS[issue.status] || issue.status}  │  Priority: ${PRIORITY_LABELS[issue.priority] || issue.priority}  │  Type: ${capitalizeFirst(issue.issue_type)}${issue.assignee ? `  │  Assignee: ${issue.assignee}` : ""}`,
+    content: `Status: ${STATUS_LABELS[issue.status] ?? issue.status}  │  Priority: ${PRIORITY_LABELS[issue.priority] ?? issue.priority}  │  Type: ${capitalizeFirst(issue.issue_type)}${issue.assignee != null ? `  │  Assignee: ${issue.assignee}` : ""}`,
     fg: theme.colors.text,
   });
   parent.add(metaLine);
@@ -195,7 +198,7 @@ export function renderIssuePopup(
   parent.add(spacer1);
 
   // Description section
-  if (issue.description) {
+  if (issue.description != null && issue.description !== "") {
     const descLabel = new TextRenderable(renderer, {
       id: `popup-desc-label-${renderCounter}`,
       content: "Description",

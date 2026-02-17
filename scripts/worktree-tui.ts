@@ -282,6 +282,7 @@ async function main() {
     closed: [],
   };
   let boardRefreshInterval: ReturnType<typeof setInterval> | null = null;
+  let projectsRefreshInterval: ReturnType<typeof setInterval> | null = null;
   // Issue popup state
   let issuePopupState: IssuePopupState = {
     issue: null,
@@ -397,10 +398,14 @@ async function main() {
 
   // Update content function
   function updateContent() {
-    // Clear board refresh interval when switching tabs
+    // Clear refresh intervals when switching tabs
     if (boardRefreshInterval) {
       clearInterval(boardRefreshInterval);
       boardRefreshInterval = null;
+    }
+    if (projectsRefreshInterval) {
+      clearInterval(projectsRefreshInterval);
+      projectsRefreshInterval = null;
     }
 
     // Hide search box by default
@@ -444,6 +449,36 @@ async function main() {
         updateContent,
         selectedIndex,
       );
+
+      // Set up auto-refresh every 5 seconds
+      debug("Setting up projects auto-refresh (5s interval)");
+      projectsRefreshInterval = setInterval(() => {
+        debug("Auto-refreshing projects list...");
+        // Rebuild project nodes to detect new worktrees
+        const mainRepoPath = getMainRepoPath(gitRoot);
+        const refreshedProjectNodes = buildProjectNodes(
+          recentProjects,
+          mainRepoPath ?? gitRoot,
+        );
+        projectNodes = refreshedProjectNodes;
+
+        // Re-filter and re-render
+        const refreshedFiltered = filterProjects(
+          projectNodes,
+          projectsSearchQuery,
+        );
+        clearContent(ui.contentScroll);
+        renderCounter++;
+        renderProjects(
+          renderer,
+          ui.contentScroll,
+          refreshedFiltered,
+          renderCounter,
+          updateContent,
+          selectedIndex,
+        );
+        renderer.requestRender();
+      }, 5000);
     } else if (activeTab === "files") {
       // Show search box only when in search mode
       if (searchMode || searchQuery !== "") {

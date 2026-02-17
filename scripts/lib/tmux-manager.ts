@@ -342,11 +342,46 @@ function createPaneAtPath(worktreePath: string, _projectPath: string): void {
 /**
  * Recover a background pane
  */
+/**
+ * Find a background pane for the given worktree path.
+ * Supports hierarchical matching - if no exact match, finds panes in subdirectories.
+ */
+function findBackgroundPaneForWorktree(
+  worktreePath: string,
+): { path: string; paneId: string } | undefined {
+  // First try exact match
+  const exactMatch = backgroundPanes.get(worktreePath);
+  if (exactMatch !== undefined) {
+    return { path: worktreePath, paneId: exactMatch };
+  }
+
+  // Then try to find any pane in a subdirectory
+  for (const [panePath, paneId] of backgroundPanes.entries()) {
+    if (panePath.startsWith(worktreePath + "/")) {
+      return { path: panePath, paneId };
+    }
+  }
+
+  return undefined;
+}
+
 function recoverBackgroundPane(
   worktreePath: string,
   currentLeftPaneId: string | null,
 ): void {
-  const bgPane = backgroundPanes.get(worktreePath);
+  const bgPaneInfo = findBackgroundPaneForWorktree(worktreePath);
+  if (bgPaneInfo === undefined) {
+    debug("No background pane found for:", worktreePath);
+    return;
+  }
+
+  const { path: actualPath, paneId: bgPane } = bgPaneInfo;
+  if (actualPath !== worktreePath) {
+    debug(
+      `Found subdirectory pane at ${actualPath} for worktree ${worktreePath}`,
+    );
+  }
+
   if (!bgPane) {
     debug("No background pane found for:", worktreePath);
     return;

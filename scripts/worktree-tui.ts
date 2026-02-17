@@ -567,7 +567,9 @@ async function main() {
   const keyInput: KeyInputHandler = renderer.keyInput;
   keyInput.on("keypress", (key: Readonly<KeyEvent>) => {
     const keyName: string = key.name;
-    debug(`Key pressed: ${keyName}`);
+    debug(
+      `Key pressed: ${keyName}, ctrl: ${key.ctrl}, shift: ${key.shift}, meta: ${key.meta}`,
+    );
 
     if (keyName === "r") {
       // Reload the TUI
@@ -606,6 +608,38 @@ async function main() {
       activeTab = TABS[nextIndex].id;
       saveUIState({ activeTab });
       selectedIndex = 0; // Reset selection when switching tabs
+      updateContent();
+    } else if (
+      ((keyName === "left" && key.ctrl) ||
+        (keyName === "h" && key.ctrl) ||
+        (keyName === "backspace" &&
+          !searchMode &&
+          !projectsSearchMode &&
+          !boardSearchMode)) &&
+      !key.shift
+    ) {
+      // Ctrl+Left or Ctrl+h (backspace): navigate to previous tab
+      // Note: Ctrl+h is interpreted as backspace by the terminal
+      const currentIndex = TABS.findIndex(
+        (t: Readonly<{ id: TabId; label: string }>) => t.id === activeTab,
+      );
+      const prevIndex = (currentIndex - 1 + TABS.length) % TABS.length;
+      activeTab = TABS[prevIndex].id;
+      saveUIState({ activeTab });
+      selectedIndex = 0;
+      updateContent();
+    } else if (
+      ((keyName === "right" && key.ctrl) || (keyName === "l" && key.ctrl)) &&
+      !key.shift
+    ) {
+      // Ctrl+Right or Ctrl+l: navigate to next tab
+      const currentIndex = TABS.findIndex(
+        (t: Readonly<{ id: TabId; label: string }>) => t.id === activeTab,
+      );
+      const nextIndex = (currentIndex + 1) % TABS.length;
+      activeTab = TABS[nextIndex].id;
+      saveUIState({ activeTab });
+      selectedIndex = 0;
       updateContent();
     } else if (keyName === "escape") {
       // Close popup if open

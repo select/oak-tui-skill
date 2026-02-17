@@ -35,6 +35,7 @@ export function initTmuxManager(): void {
   debug("Oak pane ID:", oakPaneId);
   loadBackgroundPanes();
   cleanupStalePanes();
+  discoverOrphanedPanes();
 }
 
 /**
@@ -140,11 +141,27 @@ function paneExists(paneId: string): boolean {
  * Check if worktree has a background pane
  */
 export function hasBackgroundPane(worktreePath: string): boolean {
-  const has = backgroundPanes.has(worktreePath);
-  debug(
-    `hasBackgroundPane check: ${worktreePath} = ${has} (tracked: ${Array.from(backgroundPanes.keys()).join(", ") || "none"})`,
-  );
-  return has;
+  // Exact match
+  if (backgroundPanes.has(worktreePath)) {
+    debug(`hasBackgroundPane: exact match for ${worktreePath}`);
+    return true;
+  }
+
+  // Check if any pane is in a subdirectory of this worktree
+  const normalizedPath = worktreePath.endsWith("/")
+    ? worktreePath
+    : worktreePath + "/";
+  for (const [panePath] of backgroundPanes) {
+    if (panePath.startsWith(normalizedPath)) {
+      debug(
+        `hasBackgroundPane: subdirectory match for ${worktreePath} (found pane at ${panePath})`,
+      );
+      return true;
+    }
+  }
+
+  debug(`hasBackgroundPane: no match for ${worktreePath}`);
+  return false;
 }
 
 /**
@@ -477,6 +494,92 @@ function saveBackgroundPanes(): void {
     debug("Saved background panes:", backgroundPanes.size);
   } catch (err) {
     debug("Error saving background panes:", err);
+  }
+}
+
+/**
+ * Discover orphaned panes in oak-bg session and add them to tracking
+ */
+function discoverOrphanedPanes(): void {
+  debug("Discovering orphaned panes in oak-bg session");
+
+  try {
+    // Check if oak-bg session exists
+    const sessionExists = execSync("tmux has-session -t oak-bg 2>&1", {
+      encoding: "utf-8",
+    });
+
+    if (sessionExists.includes("can't find session")) {
+      debug("oak-bg session does not exist, skipping discovery");
+      return;
+    }
+  } catch {
+    debug("oak-bg session does not exist, skipping discovery");
+    return;
+  }
+
+  try {
+    // Get all panes in oak-bg session
+    const output = execSync(
+      "tmux list-panes -t oak-bg -F '#{pane_id} #{pane_current_path}'",
+      { encoding: "utf-8" },
+    ).trim();
+
+    if (!output) {
+      debug("No panes in oak-bg session");
+      return;
+    }
+
+    const panes = output.split("\n").map((line) => {
+      const [paneId, path] = line.split(" ");
+      return { paneId, path };
+    });
+
+    debug(`Found ${panes.length} panes in oak-bg session`);
+
+    let discoveredCount = 0;
+
+    for (const pane of panes) {
+      // Skip if already tracked
+      if (backgroundPanes.has(pane.path)) {
+        debug(`Pane ${pane.paneId} at ${pane.path} is already tracked`);
+        continue;
+      }
+
+      // Try to determine the project path (git root)
+      let projectPath = pane.path;
+      try {
+        const gitRoot = execSync("git rev-parse --show-toplevel", {
+          cwd: pane.path,
+          encoding: "utf-8",
+        }).trim();
+        projectPath = gitRoot;
+      } catch {
+        // Not a git repo, use the pane path as project path
+        debug(`Pane ${pane.paneId} at ${pane.path} is not in a git repo`);
+      }
+
+      // Add to tracking
+      const bgPane: BackgroundPane = {
+        paneId: pane.paneId,
+        worktreePath: pane.path,
+        projectPath: projectPath,
+        createdAt: Date.now(),
+      };
+
+      backgroundPanes.set(pane.path, bgPane);
+      discoveredCount++;
+      debug(`Discovered orphaned pane: ${pane.paneId} at ${pane.path}`);
+    }
+
+    if (discoveredCount > 0) {
+      debug(`Discovered ${discoveredCount} orphaned panes`);
+      saveBackgroundPanes();
+    } else {
+      debug("No orphaned panes discovered");
+    }
+  } catch (err) {
+    debug("Error discovering orphaned panes:", err);
   }
 }
 

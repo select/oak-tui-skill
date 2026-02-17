@@ -45,8 +45,7 @@ while [[ $# -gt 0 ]]; do
             pkill -9 -f "bun.*worktree" 2>/dev/null || true
             pkill -9 -f "bun.*oak" 2>/dev/null || true
             rm -f "$SOCKET_PATH" 2>/dev/null || true
-            # Also kill any oak-bg window panes
-            tmux kill-window -t oak-bg 2>/dev/null || true
+            # NOTE: Do NOT kill oak-bg session - it contains user's background panes
             sleep 0.3
             echo "Killed"
             exit 0

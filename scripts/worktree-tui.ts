@@ -242,6 +242,14 @@ async function main() {
   let fileTree = readDirectoryEntries(gitRoot, 0, true);
   debug("File tree entries:", fileTree.length);
 
+  // Initialize expandedProjects with projects that should be expanded by default
+  let expandedProjects = new Set<string>();
+  for (const node of projectNodes) {
+    if (node.isExpanded) {
+      expandedProjects.add(node.path);
+    }
+  }
+
   // Resolve to main repo path before saving
   const mainRepoPath = getMainRepoPath(gitRoot);
   if (mainRepoPath !== null && mainRepoPath !== "") {
@@ -276,7 +284,6 @@ async function main() {
   let boardSearchQuery = ""; // For board view
   let boardSearchMode = false; // Whether search input is active (board view)
   let expandedPaths = new Set<string>();
-  let expandedProjects = new Set<string>(); // Track which projects are expanded
   let selectedIndex = 0; // Track keyboard selection for projects/board
   let filesSelectedIndex = 0; // Track keyboard selection for files view
   let boardIssues: GroupedIssues = {
@@ -384,10 +391,21 @@ async function main() {
     searchQuery = "";
     expandedPaths = new Set<string>();
 
+    // Save current expand state before reloading
+    const previouslyExpanded = new Set(expandedProjects);
+
     saveRecentProject(gitRoot);
     recentProjects = loadRecentProjects();
     projectNodes = buildProjectNodes(recentProjects, gitRoot);
     debug("Project nodes reloaded:", projectNodes.length);
+
+    // Reinitialize expandedProjects with previously expanded + auto-expand active projects
+    expandedProjects = new Set<string>();
+    for (const node of projectNodes) {
+      if (node.isExpanded || previouslyExpanded.has(node.path)) {
+        expandedProjects.add(node.path);
+      }
+    }
 
     // Re-expand top-level folders
     for (const node of fileTree) {
@@ -818,28 +836,20 @@ async function main() {
       } else if (keyName === "left" || keyName === "h") {
         // Collapse/fold the current item
         const item = getItemAtIndex(filteredProjects, selectedIndex);
-        if (item) {
-          // Find the original node in projectNodes by path
-          const originalNode = projectNodes.find(
-            (n) => n.path === filteredProjects[item.projectIndex].path,
-          );
-          if (originalNode?.isExpanded) {
-            originalNode.isExpanded = false;
-            expandedPaths.delete(originalNode.path);
+        if (item && item.type === "project") {
+          const selectedProject = filteredProjects[item.projectIndex];
+          if (expandedProjects.has(selectedProject.path)) {
+            expandedProjects.delete(selectedProject.path);
             updateContent();
           }
         }
       } else if (keyName === "right" || keyName === "l") {
         // Expand/unfold the current item
         const item = getItemAtIndex(filteredProjects, selectedIndex);
-        if (item) {
-          // Find the original node in projectNodes by path
-          const originalNode = projectNodes.find(
-            (n) => n.path === filteredProjects[item.projectIndex].path,
-          );
-          if (originalNode && !originalNode.isExpanded) {
-            originalNode.isExpanded = true;
-            expandedPaths.add(originalNode.path);
+        if (item && item.type === "project") {
+          const selectedProject = filteredProjects[item.projectIndex];
+          if (!expandedProjects.has(selectedProject.path)) {
+            expandedProjects.add(selectedProject.path);
             updateContent();
           }
         }
@@ -848,19 +858,14 @@ async function main() {
         const item = getItemAtIndex(filteredProjects, selectedIndex);
         if (item) {
           if (item.type === "project") {
-            // Toggle project expansion - find original node
-            const originalNode = projectNodes.find(
-              (n) => n.path === filteredProjects[item.projectIndex].path,
-            );
-            if (originalNode) {
-              originalNode.isExpanded = !originalNode.isExpanded;
-              if (originalNode.isExpanded) {
-                expandedPaths.add(originalNode.path);
-              } else {
-                expandedPaths.delete(originalNode.path);
-              }
-              updateContent();
+            // Toggle project expansion
+            const selectedProject = filteredProjects[item.projectIndex];
+            if (expandedProjects.has(selectedProject.path)) {
+              expandedProjects.delete(selectedProject.path);
+            } else {
+              expandedProjects.add(selectedProject.path);
             }
+            updateContent();
           } else if (typeof item.worktreeIndex === "number") {
             // item.type must be "worktree" at this point
             // Switch to worktree - use filteredProjects for reading data

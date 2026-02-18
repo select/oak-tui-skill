@@ -48,6 +48,7 @@ export function getWorktrees(gitRoot: string): Worktree[] {
     const output = execSync("git worktree list --porcelain", {
       cwd: gitRoot,
       encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"], // Suppress stderr
     });
 
     const worktrees: Worktree[] = [];
@@ -102,6 +103,7 @@ export function getGitRoot(dir: string): string | null {
     return execSync("git rev-parse --show-toplevel", {
       cwd: dir,
       encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"], // Suppress stderr
     }).trim();
   } catch {
     return null;
@@ -125,6 +127,7 @@ export function getMainRepoPath(dir: string): string | null {
     const output = execSync("git worktree list --porcelain", {
       cwd: dir,
       encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"], // Suppress stderr
     });
 
     const lines = output.trim().split("\n");
@@ -168,10 +171,10 @@ export function saveRecentProject(projectPath: string): void {
       mkdirSync(DATA_DIR, { recursive: true });
     }
 
-    // Resolve worktrees to main repo path
-    const mainRepoPath = getMainRepoPath(projectPath);
-    if (mainRepoPath === null || mainRepoPath === "") {
-      debug("Could not resolve main repo path for:", projectPath);
+    // Resolve worktrees to main repo path, or use the original path if not a git repo
+    const mainRepoPath = getMainRepoPath(projectPath) || projectPath;
+    if (!mainRepoPath) {
+      debug("Invalid project path:", projectPath);
       return;
     }
 
@@ -234,9 +237,12 @@ export function deduplicateRecentProjects(): number {
 
     // Resolve each project to its main repo and keep the most recent
     for (const project of projects) {
-      const mainRepoPath = getMainRepoPath(project.path);
-      if (mainRepoPath === null || mainRepoPath === "") {
-        // Not a git repo anymore, skip it
+      // For git repos, resolve to main repo; for non-git dirs, keep as-is
+      const mainRepoPath = getMainRepoPath(project.path) || project.path;
+
+      // Skip if path doesn't exist anymore
+      if (!existsSync(mainRepoPath)) {
+        debug(`Skipping non-existent path: ${mainRepoPath}`);
         continue;
       }
 

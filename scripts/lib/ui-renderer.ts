@@ -46,11 +46,12 @@ function debugLog(message: string) {
 // Helper to count total selectable items (projects + their worktrees if expanded)
 export function getSelectableCount(
   projectNodes: readonly ReadonlyProjectNode[],
+  expandedProjects: ReadonlySet<string>,
 ): number {
   let count = 0;
   for (const node of projectNodes) {
     count++; // Project header
-    if (node.isExpanded) {
+    if (expandedProjects.has(node.path)) {
       count += node.worktrees.length;
     }
   }
@@ -60,6 +61,7 @@ export function getSelectableCount(
 // Helper to get the item at a given flat index
 export function getItemAtIndex(
   projectNodes: readonly ReadonlyProjectNode[],
+  expandedProjects: ReadonlySet<string>,
   index: number,
 ): {
   type: "project" | "worktree";
@@ -72,7 +74,7 @@ export function getItemAtIndex(
       return { type: "project", projectIndex: i };
     }
     currentIndex++;
-    if (projectNodes[i].isExpanded) {
+    if (expandedProjects.has(projectNodes[i].path)) {
       for (let j = 0; j < projectNodes[i].worktrees.length; j++) {
         if (currentIndex === index) {
           return { type: "worktree", projectIndex: i, worktreeIndex: j };

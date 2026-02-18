@@ -254,7 +254,10 @@ async function main() {
     saveRecentProject(gitRoot);
   }
 
-  const renderer = await createCliRenderer({ exitOnCtrlC: true });
+  const renderer = await createCliRenderer({
+    exitOnCtrlC: true,
+    useMouse: true,
+  });
   debug("Renderer created");
 
   // Load saved tab or default to "projects"

@@ -25,7 +25,7 @@ function isKeyInputHandler(value: unknown): value is KeyInputHandler {
   );
 }
 
-import type { TabId } from "./lib/types";
+import type { TabId, ProjectNode } from "./lib/types";
 import {
   checkExistingInstance,
   createSocketServer,
@@ -276,6 +276,7 @@ async function main() {
   let boardSearchQuery = ""; // For board view
   let boardSearchMode = false; // Whether search input is active (board view)
   let expandedPaths = new Set<string>();
+  let expandedProjects = new Set<string>(); // Track which projects are expanded
   let selectedIndex = 0; // Track keyboard selection for projects/board
   let filesSelectedIndex = 0; // Track keyboard selection for files view
   let boardIssues: GroupedIssues = {
@@ -287,6 +288,8 @@ async function main() {
   let boardRefreshInterval: ReturnType<typeof setInterval> | null = null;
   let projectsRefreshInterval: ReturnType<typeof setInterval> | null = null;
   let activeWorktreePath: string | undefined; // Track active worktree for Board tab
+  let filteredProjectsCache: ProjectNode[] | null = null; // Cache filtered projects
+  let lastProjectsSearchQuery = ""; // Track last search query to detect changes
   // Issue popup state
   let issuePopupState: IssuePopupState = {
     issue: null,
@@ -463,15 +466,24 @@ async function main() {
         ui.searchCursor.visible = projectsSearchMode;
       }
 
-      const filteredProjects = filterProjects(
-        projectNodes,
-        projectsSearchQuery,
-      );
+      // Only re-filter if search query changed or cache is empty
+      if (
+        filteredProjectsCache === null ||
+        lastProjectsSearchQuery !== projectsSearchQuery
+      ) {
+        filteredProjectsCache = filterProjects(
+          projectNodes,
+          projectsSearchQuery,
+        );
+        lastProjectsSearchQuery = projectsSearchQuery;
+      }
+
       renderProjects(
         renderer,
         ui.contentScroll,
-        filteredProjects,
+        filteredProjectsCache,
         renderCounter,
+        expandedProjects,
         updateContent,
         selectedIndex,
         activeWorktreePath,
@@ -514,6 +526,7 @@ async function main() {
           ui.contentScroll,
           refreshedFiltered,
           renderCounter,
+          expandedProjects,
           updateContent,
           selectedIndex,
           activeWorktreePath,

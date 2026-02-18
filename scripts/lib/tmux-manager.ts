@@ -594,6 +594,7 @@ function discoverOrphanedPanes(): void {
         const gitRoot = execSync("git rev-parse --show-toplevel", {
           cwd: pane.path,
           encoding: "utf-8",
+          stdio: ["pipe", "pipe", "ignore"], // Suppress stderr
         }).trim();
         projectPath = gitRoot;
       } catch {

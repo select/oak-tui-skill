@@ -1,6 +1,6 @@
 ---
 name: oak-tree-skill
-description: Manage git worktrees with a TUI. Use this skill when: "oak" "worktree" "git worktree" "manage worktrees" "worktree manager"
+description: Manage git worktrees with a TUI. Use this skill when "oak" "worktree" "git worktree" is mentioned
 ---
 
 # Purpose

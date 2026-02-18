@@ -430,7 +430,6 @@ export function renderProjects(
   renderCounter: number,
   expandedProjects: Set<string>,
   onUpdate: () => void,
-  showMouseHover: boolean,
   selectedIndex: number = -1,
   activeWorktreePath?: string,
   onWorktreeSwitch?: (worktreePath: string, projectPath: string) => void,
@@ -472,7 +471,7 @@ export function renderProjects(
       flexDirection: "row",
       backgroundColor: projectIsSelected ? "#3a3a3a" : undefined,
       onMouseOver: () => {
-        if (!projectIsSelected && showMouseHover) {
+        if (!projectIsSelected) {
           projectHeader.backgroundColor = "#3a3a3a";
           void Promise.resolve().then(() => {
             renderer.requestRender();
@@ -480,7 +479,7 @@ export function renderProjects(
         }
       },
       onMouseOut: () => {
-        if (!projectIsSelected && showMouseHover) {
+        if (!projectIsSelected) {
           projectHeader.backgroundColor = undefined;
           void Promise.resolve().then(() => {
             renderer.requestRender();
@@ -540,7 +539,7 @@ export function renderProjects(
           paddingLeft: 2,
           backgroundColor: wtIsSelected ? "#3a3a3a" : undefined,
           onMouseOver: () => {
-            if (!wtIsSelected && showMouseHover) {
+            if (!wtIsSelected) {
               wtBox.backgroundColor = "#3a3a3a";
               void Promise.resolve().then(() => {
                 renderer.requestRender();
@@ -548,7 +547,7 @@ export function renderProjects(
             }
           },
           onMouseOut: () => {
-            if (!wtIsSelected && showMouseHover) {
+            if (!wtIsSelected) {
               wtBox.backgroundColor = undefined;
               void Promise.resolve().then(() => {
                 renderer.requestRender();

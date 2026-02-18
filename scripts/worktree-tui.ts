@@ -485,6 +485,18 @@ async function main() {
           recentProjects,
           mainRepoPath ?? gitRoot,
         );
+
+        // Preserve expand states from existing projectNodes
+        const expandStates = new Map(
+          projectNodes.map((node) => [node.path, node.isExpanded]),
+        );
+        for (const node of refreshedProjectNodes) {
+          const savedState = expandStates.get(node.path);
+          if (savedState !== undefined) {
+            node.isExpanded = savedState;
+          }
+        }
+
         projectNodes = refreshedProjectNodes;
 
         // Re-filter and re-render

@@ -4,6 +4,7 @@ import {
   TextRenderable,
   createTextAttributes,
   type CliRenderer,
+  type MouseEvent,
 } from "@opentui/core";
 import Fuse, { type FuseResult } from "fuse.js";
 import type {
@@ -30,6 +31,17 @@ import {
 import { basename } from "node:path";
 import { filterFileTree } from "../components/file-tree";
 import { currentTheme } from "./theme-manager";
+import { homedir } from "node:os";
+import { appendFileSync } from "node:fs";
+
+// Debug logging
+const DEBUG = process.argv.includes("--debug");
+const DEBUG_LOG_PATH = `${homedir()}/.local/share/oak-tui/debug.log`;
+function debugLog(message: string) {
+  if (!DEBUG) return;
+  const timestamp = new Date().toLocaleTimeString();
+  appendFileSync(DEBUG_LOG_PATH, `[${timestamp}] ${message}\n`);
+}
 
 // Helper to count total selectable items (projects + their worktrees if expanded)
 export function getSelectableCount(
@@ -410,12 +422,13 @@ export function updateUIColors(ui: UIComponents): void {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/prefer-readonly-parameter-types -- CliRenderer and ScrollBoxRenderable are mutable external types, projectNodes is mutated for expand state
+// eslint-disable-next-line @typescript-eslint/prefer-readonly-parameter-types -- CliRenderer and ScrollBoxRenderable are mutable external types
 export function renderProjects(
   renderer: CliRenderer,
   contentScroll: ScrollBoxRenderable,
   projectNodes: ProjectNode[],
   renderCounter: number,
+  expandedProjects: Set<string>,
   onUpdate: () => void,
   selectedIndex: number = -1,
   activeWorktreePath?: string,
@@ -438,7 +451,7 @@ export function renderProjects(
 
   for (let i = 0; i < projectNodes.length; i++) {
     const node = projectNodes[i];
-    const isExpanded = node.isExpanded;
+    const isExpanded = expandedProjects.has(node.path);
     const expandIcon = isExpanded ? "\u{25BC}" : "\u{25B6}";
 
     const projectBox = new BoxRenderable(renderer, {
@@ -490,15 +503,24 @@ export function renderProjects(
     projectHeader.add(expandIconText);
     projectHeader.add(projectName);
 
-    projectHeader.onMouseDown = (
-      event: Readonly<{ stopPropagation: () => void }>,
-    ) => {
-      event.stopPropagation();
-      // Only toggle expand, don't switch project
-      node.isExpanded = !node.isExpanded;
-      void Promise.resolve().then(() => {
-        onUpdate();
-      });
+    projectHeader.onMouse = (event: MouseEvent) => {
+      try {
+        // Only handle left-click up events
+        if (event.type === "up" && event.button === 0) {
+          event.stopPropagation();
+          // Toggle expand state in the Set
+          if (isExpanded) {
+            expandedProjects.delete(node.path);
+          } else {
+            expandedProjects.add(node.path);
+          }
+          void Promise.resolve().then(() => {
+            onUpdate();
+          });
+        }
+      } catch {
+        // Ignore mouse handler errors
+      }
     };
 
     projectBox.add(projectHeader);

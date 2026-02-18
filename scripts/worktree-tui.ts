@@ -823,7 +823,7 @@ async function main() {
         projectsSearchQuery,
       );
       // Navigation with arrow keys and vim keys
-      const totalItems = getSelectableCount(filteredProjects);
+      const totalItems = getSelectableCount(filteredProjects, expandedProjects);
       if (keyName === "/" || keyName === "slash") {
         projectsSearchMode = true;
         updateContent();
@@ -835,7 +835,11 @@ async function main() {
         updateContent();
       } else if (keyName === "left" || keyName === "h") {
         // Collapse/fold the current item
-        const item = getItemAtIndex(filteredProjects, selectedIndex);
+        const item = getItemAtIndex(
+          filteredProjects,
+          expandedProjects,
+          selectedIndex,
+        );
         if (item && item.type === "project") {
           const selectedProject = filteredProjects[item.projectIndex];
           if (expandedProjects.has(selectedProject.path)) {
@@ -845,7 +849,11 @@ async function main() {
         }
       } else if (keyName === "right" || keyName === "l") {
         // Expand/unfold the current item
-        const item = getItemAtIndex(filteredProjects, selectedIndex);
+        const item = getItemAtIndex(
+          filteredProjects,
+          expandedProjects,
+          selectedIndex,
+        );
         if (item && item.type === "project") {
           const selectedProject = filteredProjects[item.projectIndex];
           if (!expandedProjects.has(selectedProject.path)) {
@@ -855,7 +863,11 @@ async function main() {
         }
       } else if (keyName === "space" || keyName === "return") {
         // Select/activate the current item
-        const item = getItemAtIndex(filteredProjects, selectedIndex);
+        const item = getItemAtIndex(
+          filteredProjects,
+          expandedProjects,
+          selectedIndex,
+        );
         if (item) {
           if (item.type === "project") {
             // Toggle project expansion
@@ -878,7 +890,11 @@ async function main() {
         }
       } else if (keyName === "d") {
         // Delete project from recent list (only for project headers, not worktrees)
-        const item = getItemAtIndex(filteredProjects, selectedIndex);
+        const item = getItemAtIndex(
+          filteredProjects,
+          expandedProjects,
+          selectedIndex,
+        );
         if (item?.type === "project") {
           const node = filteredProjects[item.projectIndex];
           const removed = removeRecentProject(node.path);
@@ -888,7 +904,7 @@ async function main() {
             recentProjects = loadRecentProjects();
             projectNodes = buildProjectNodes(recentProjects, gitRoot);
             // Adjust selected index if needed
-            const newTotal = getSelectableCount(projectNodes);
+            const newTotal = getSelectableCount(projectNodes, expandedProjects);
             if (selectedIndex >= newTotal) {
               selectedIndex = Math.max(0, newTotal - 1);
             }

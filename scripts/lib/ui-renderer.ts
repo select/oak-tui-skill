@@ -538,7 +538,7 @@ export function renderProjects(
           id: `worktree-${renderCounter}-${i}-${wtIdx}`,
           width: "100%",
           flexDirection: "column",
-          paddingLeft: 2,
+          paddingLeft: 1,
           backgroundColor: wtIsSelected ? "#3a3a3a" : undefined,
           onMouseOver: () => {
             if (!wtIsSelected) {
@@ -581,7 +581,7 @@ export function renderProjects(
 
         const wtName = new TextRenderable(renderer, {
           id: `worktree-name-${renderCounter}-${i}-${wtIdx}`,
-          content: `  ⎇ ${basename(wt.path)}`,
+          content: ` ⎇ ${basename(wt.path)}`,
           fg: "#7fd88f",
         });
 
@@ -596,7 +596,7 @@ export function renderProjects(
 
         const wtInfo = new TextRenderable(renderer, {
           id: `worktree-info-${renderCounter}-${i}-${wtIdx}`,
-          content: `    ${wt.branch} • ${wt.commit.substring(0, 7)}`,
+          content: `   ${wt.branch} • ${wt.commit.substring(0, 7)}`,
           fg: "#808080",
         });
 

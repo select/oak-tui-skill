@@ -279,6 +279,7 @@ async function main() {
   let expandedProjects = new Set<string>(); // Track which projects are expanded
   let selectedIndex = 0; // Track keyboard selection for projects/board
   let filesSelectedIndex = 0; // Track keyboard selection for files view
+  let showMouseHover = true; // Track whether to show mouse hover state
   let boardIssues: GroupedIssues = {
     blocked: [],
     ready: [],
@@ -679,6 +680,9 @@ async function main() {
     debug(
       `Key pressed: ${keyName}, ctrl: ${key.ctrl}, shift: ${key.shift}, meta: ${key.meta}`,
     );
+
+    // Disable mouse hover when keyboard is used
+    showMouseHover = false;
 
     if (keyName === "r") {
       // Reload the TUI
@@ -1104,6 +1108,14 @@ async function main() {
       }
     }
   });
+
+  // Global mouse handler to re-enable hover when mouse moves
+  ui.root.onMouse = (event) => {
+    if (event.type === "move" && !showMouseHover) {
+      showMouseHover = true;
+      updateContent();
+    }
+  };
 
   // Initial render
   updateContent();

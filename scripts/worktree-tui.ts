@@ -862,8 +862,15 @@ async function main() {
             // On a worktree - collapse parent project and move selection to it
             if (expandedProjects.has(selectedProject.path)) {
               expandedProjects.delete(selectedProject.path);
-              // Move selection to parent project
-              selectedIndex = item.projectIndex;
+              // Calculate the flat index of the parent project
+              let parentFlatIndex = 0;
+              for (let i = 0; i < item.projectIndex; i++) {
+                parentFlatIndex++; // Count the project header
+                if (expandedProjects.has(filteredProjects[i].path)) {
+                  parentFlatIndex += filteredProjects[i].worktrees.length;
+                }
+              }
+              selectedIndex = parentFlatIndex;
               updateContent();
             }
           }

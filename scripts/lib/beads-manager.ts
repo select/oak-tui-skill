@@ -1,7 +1,82 @@
 // Beads issue management - fetching and parsing issues from bd CLI
 
 import { execSync } from "node:child_process";
+import { readdirSync, statSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import type { BeadsIssue, GroupedIssues, ReadonlyGroupedIssues } from "./types";
+
+// Directories to ignore during .beads search (same as file-tree.ts)
+const IGNORED_DIRS = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  ".next",
+  ".cache",
+  "coverage",
+  "__pycache__",
+  ".venv",
+  "venv",
+  ".turbo",
+  ".bun",
+]);
+
+/**
+ * Find .beads directory using breadth-first search.
+ * Priority: root first, then shallowest subdirectories.
+ *
+ * @param startPath - Directory to start search from
+ * @returns Path containing .beads directory, or null if not found
+ */
+export function findBeadsDirectory(startPath: string): string | null {
+  // Check root first
+  if (existsSync(join(startPath, ".beads"))) {
+    return startPath;
+  }
+
+  // BFS through subdirectories
+  const queue: string[] = [startPath];
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const currentPath = queue.shift()!;
+
+    if (visited.has(currentPath)) continue;
+    visited.add(currentPath);
+
+    try {
+      const entries = readdirSync(currentPath);
+
+      for (const entry of entries) {
+        // Skip ignored directories
+        if (IGNORED_DIRS.has(entry)) continue;
+
+        const fullPath = join(currentPath, entry);
+
+        try {
+          const stats = statSync(fullPath);
+          if (!stats.isDirectory()) continue;
+
+          // Check if this directory contains .beads
+          if (existsSync(join(fullPath, ".beads"))) {
+            return fullPath;
+          }
+
+          // Add to queue for further exploration
+          queue.push(fullPath);
+        } catch {
+          // Skip permission errors
+          continue;
+        }
+      }
+    } catch {
+      // Skip directories we can't read
+      continue;
+    }
+  }
+
+  return null; // No .beads found
+}
 
 /**
  * Type guard to check if a value is a BeadsIssue
@@ -36,10 +111,17 @@ function parseBeadsIssues(json: string): BeadsIssue[] {
  */
 export function fetchBeadsIssues(workingDir?: string): BeadsIssue[] {
   try {
+    const searchPath = workingDir ?? process.cwd();
+    const beadsDir = findBeadsDirectory(searchPath);
+
+    if (beadsDir === null) {
+      return []; // No .beads found
+    }
+
     const output = execSync("bd list --json", {
       encoding: "utf-8",
       timeout: 5000,
-      cwd: workingDir,
+      cwd: beadsDir, // Use directory containing .beads
       stdio: ["pipe", "pipe", "ignore"], // Suppress stderr
     });
     return parseBeadsIssues(output);
@@ -54,10 +136,17 @@ export function fetchBeadsIssues(workingDir?: string): BeadsIssue[] {
  */
 export function fetchReadyIssues(workingDir?: string): BeadsIssue[] {
   try {
+    const searchPath = workingDir ?? process.cwd();
+    const beadsDir = findBeadsDirectory(searchPath);
+
+    if (beadsDir === null) {
+      return []; // No .beads found
+    }
+
     const output = execSync("bd ready --json", {
       encoding: "utf-8",
       timeout: 5000,
-      cwd: workingDir,
+      cwd: beadsDir, // Use directory containing .beads
       stdio: ["pipe", "pipe", "ignore"], // Suppress stderr
     });
     return parseBeadsIssues(output);

@@ -227,7 +227,17 @@ async function main() {
 
   // Initialize state
   let currentDir = startDir;
-  let gitRoot = getGitRoot(startDir) ?? startDir;
+  const gitRootResult = getGitRoot(startDir);
+
+  // If not in a git repo, show error and exit
+  if (gitRootResult === null) {
+    debug("Not in a git repository, exiting");
+    console.error("❌ Oak must be started from within a git repository.");
+    console.error("Please navigate to a git repository and try again.");
+    process.exit(1);
+  }
+
+  let gitRoot = gitRootResult;
   debug("Git root:", gitRoot);
 
   // Deduplicate recent projects on startup (resolves worktrees to main repos)
@@ -834,17 +844,28 @@ async function main() {
         selectedIndex = Math.min(totalItems - 1, selectedIndex + 1);
         updateContent();
       } else if (keyName === "left" || keyName === "h") {
-        // Collapse/fold the current item
+        // Collapse/fold the current item or parent
         const item = getItemAtIndex(
           filteredProjects,
           expandedProjects,
           selectedIndex,
         );
-        if (item && item.type === "project") {
+        if (item) {
           const selectedProject = filteredProjects[item.projectIndex];
-          if (expandedProjects.has(selectedProject.path)) {
-            expandedProjects.delete(selectedProject.path);
-            updateContent();
+          if (item.type === "project") {
+            // On a project - collapse it if expanded
+            if (expandedProjects.has(selectedProject.path)) {
+              expandedProjects.delete(selectedProject.path);
+              updateContent();
+            }
+          } else {
+            // On a worktree - collapse parent project and move selection to it
+            if (expandedProjects.has(selectedProject.path)) {
+              expandedProjects.delete(selectedProject.path);
+              // Move selection to parent project
+              selectedIndex = item.projectIndex;
+              updateContent();
+            }
           }
         }
       } else if (keyName === "right" || keyName === "l") {
@@ -1046,16 +1067,43 @@ async function main() {
           filesSelectedIndex = Math.min(totalFiles - 1, filesSelectedIndex + 1);
           updateContent();
         } else if (keyName === "left" || keyName === "h") {
-          // Collapse folder
+          // Collapse folder or parent
           const file = getFileAtIndex(
             fileTree,
             searchQuery,
             expandedPaths,
             filesSelectedIndex,
           );
-          if (file?.isDirectory === true && expandedPaths.has(file.path)) {
-            expandedPaths.delete(file.path);
-            updateContent();
+          if (file) {
+            if (file.isDirectory && expandedPaths.has(file.path)) {
+              // On an expanded folder - collapse it
+              expandedPaths.delete(file.path);
+              updateContent();
+            } else if (file.depth > 0) {
+              // On a child file/folder - collapse parent and move selection to it
+              // Find parent by searching backwards for item with depth = currentDepth - 1
+              const parentDepth = file.depth - 1;
+              for (let i = filesSelectedIndex - 1; i >= 0; i--) {
+                const potentialParent = getFileAtIndex(
+                  fileTree,
+                  searchQuery,
+                  expandedPaths,
+                  i,
+                );
+                if (potentialParent && potentialParent.depth === parentDepth) {
+                  // Found parent - collapse it if it's expanded
+                  if (
+                    potentialParent.isDirectory &&
+                    expandedPaths.has(potentialParent.path)
+                  ) {
+                    expandedPaths.delete(potentialParent.path);
+                    filesSelectedIndex = i;
+                    updateContent();
+                  }
+                  break;
+                }
+              }
+            }
           }
         } else if (keyName === "right" || keyName === "l") {
           // Expand folder

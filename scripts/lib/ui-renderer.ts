@@ -28,20 +28,10 @@ import {
   hasBackgroundPane,
   getCurrentWorktreePath,
 } from "./tmux-manager";
+import { createFooter, type FooterComponents } from "./footer";
 import { basename } from "node:path";
 import { filterFileTree } from "../components/file-tree";
 import { currentTheme } from "./theme-manager";
-import { homedir } from "node:os";
-import { appendFileSync } from "node:fs";
-
-// Debug logging
-const DEBUG = process.argv.includes("--debug");
-const DEBUG_LOG_PATH = `${homedir()}/.local/share/oak-tui/debug.log`;
-function debugLog(message: string) {
-  if (!DEBUG) return;
-  const timestamp = new Date().toLocaleTimeString();
-  appendFileSync(DEBUG_LOG_PATH, `[${timestamp}] ${message}\n`);
-}
 
 // Helper to count total selectable items (projects + their worktrees if expanded)
 export function getSelectableCount(
@@ -191,7 +181,7 @@ export interface UIComponents {
   searchInput: TextRenderable;
   searchCursor: TextRenderable;
   searchPlaceholder: TextRenderable;
-  footerBox: BoxRenderable;
+  footer: FooterComponents;
 }
 
 export interface RenderState {
@@ -318,73 +308,14 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
   });
   contentBox.add(contentScroll);
 
-  const footerBox = new BoxRenderable(renderer, {
-    id: "footer-box",
-    width: "100%",
-    paddingLeft: 1,
-    paddingRight: 1,
-    paddingTop: 1,
-    paddingBottom: 1,
-    backgroundColor: theme.colors.backgroundPanel,
-    flexDirection: "row",
-    gap: 0,
-    flexShrink: 0,
-  });
-  // Keys in accent color, descriptions in muted
-  const footerKey1 = new TextRenderable(renderer, {
-    id: "footer-key1",
-    content: "Tab",
-    fg: theme.colors.text,
-  });
-  const footerDesc1 = new TextRenderable(renderer, {
-    id: "footer-desc1",
-    content: ": cycle • ",
-    fg: theme.colors.textMuted,
-  });
-  const footerKey2 = new TextRenderable(renderer, {
-    id: "footer-key2",
-    content: "r",
-    fg: theme.colors.text,
-  });
-  const footerDesc2 = new TextRenderable(renderer, {
-    id: "footer-desc2",
-    content: ": reload • ",
-    fg: theme.colors.textMuted,
-  });
-  const footerKey3 = new TextRenderable(renderer, {
-    id: "footer-key3",
-    content: "d",
-    fg: theme.colors.text,
-  });
-  const footerDesc3 = new TextRenderable(renderer, {
-    id: "footer-desc3",
-    content: ": remove • ",
-    fg: theme.colors.textMuted,
-  });
-  const footerKey4 = new TextRenderable(renderer, {
-    id: "footer-key4",
-    content: "Ctrl+C",
-    fg: theme.colors.text,
-  });
-  const footerDesc4 = new TextRenderable(renderer, {
-    id: "footer-desc4",
-    content: ": exit",
-    fg: theme.colors.textMuted,
-  });
-  footerBox.add(footerKey1);
-  footerBox.add(footerDesc1);
-  footerBox.add(footerKey2);
-  footerBox.add(footerDesc2);
-  footerBox.add(footerKey3);
-  footerBox.add(footerDesc3);
-  footerBox.add(footerKey4);
-  footerBox.add(footerDesc4);
+  // Create footer
+  const footer = createFooter(renderer);
 
   titleBox.add(tabBar);
   root.add(titleBox);
   root.add(contentBox);
   root.add(searchBoxOuter);
-  root.add(footerBox);
+  root.add(footer.footerBox);
 
   return {
     root,
@@ -398,7 +329,7 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     searchInput,
     searchCursor,
     searchPlaceholder,
-    footerBox,
+    footer,
   };
 }
 
@@ -417,8 +348,8 @@ export function updateUIColors(ui: UIComponents): void {
   ui.titleText.fg = theme.colors.primary;
 
   // Footer (darker panel)
-  ui.footerBox.backgroundColor = theme.colors.backgroundPanel;
-  const footerChild = ui.footerBox.getChildren()[0];
+  ui.footer.footerBox.backgroundColor = theme.colors.backgroundPanel;
+  const footerChild = ui.footer.footerBox.getChildren()[0];
   if (footerChild instanceof TextRenderable) {
     footerChild.fg = theme.colors.textMuted;
   }

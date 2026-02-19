@@ -26,6 +26,7 @@ function isKeyInputHandler(value: unknown): value is KeyInputHandler {
 }
 
 import type { TabId, ProjectNode } from "./lib/types";
+import { updateFooter } from "./lib/footer";
 import {
   checkExistingInstance,
   createSocketServer,
@@ -453,6 +454,18 @@ async function main() {
   renderer.root.add(ui.root);
   debug("UI added to renderer");
 
+  // Helper to update footer with current state
+  function refreshFooter() {
+    updateFooter(ui.footer, activeTab, {
+      projectsSearchMode,
+      projectsSearchQuery,
+      boardSearchMode,
+      boardSearchQuery,
+      searchMode,
+      searchQuery,
+    });
+  }
+
   // Update content function
   function updateContent() {
     // Clear refresh intervals when switching tabs
@@ -725,6 +738,7 @@ async function main() {
         selectedIndex = 0;
         filesSelectedIndex = 0;
         updateContent();
+        refreshFooter();
       }
     } else if (keyName === "tab" && key.shift) {
       // Shift+Tab: cycle tabs in reverse
@@ -736,6 +750,7 @@ async function main() {
       saveUIState({ activeTab });
       selectedIndex = 0;
       updateContent();
+      refreshFooter();
     } else if (keyName === "tab") {
       // Tab: cycle tabs forward
       const currentIndex = TABS.findIndex(
@@ -746,6 +761,7 @@ async function main() {
       saveUIState({ activeTab });
       selectedIndex = 0; // Reset selection when switching tabs
       updateContent();
+      refreshFooter();
     } else if (
       ((keyName === "left" && key.ctrl) ||
         (keyName === "h" && key.ctrl) ||
@@ -805,6 +821,7 @@ async function main() {
         selectedIndex = 0;
         filesSelectedIndex = 0;
         updateContent();
+        refreshFooter();
       }
     } else if (activeTab === "projects") {
       // Search mode handling
@@ -812,16 +829,19 @@ async function main() {
         if (keyName === "return") {
           projectsSearchMode = false;
           updateContent();
+          refreshFooter();
           return;
         } else if (keyName === "backspace") {
           projectsSearchQuery = projectsSearchQuery.slice(0, -1);
           selectedIndex = 0;
           updateContent();
+          refreshFooter();
           return;
         } else if (keyName.length === 1) {
           projectsSearchQuery += keyName;
           selectedIndex = 0;
           updateContent();
+          refreshFooter();
           return;
         }
         return;
@@ -837,6 +857,7 @@ async function main() {
       if (keyName === "/" || keyName === "slash") {
         projectsSearchMode = true;
         updateContent();
+        refreshFooter();
       } else if (keyName === "up" || keyName === "k") {
         selectedIndex = Math.max(0, selectedIndex - 1);
         updateContent();
@@ -972,14 +993,17 @@ async function main() {
           // Exit search mode but keep filter active
           boardSearchMode = false;
           updateContent();
+          refreshFooter();
         } else if (keyName === "backspace") {
           boardSearchQuery = boardSearchQuery.slice(0, -1);
           selectedIndex = 0; // Reset selection when search changes
           updateContent();
+          refreshFooter();
         } else if (keyName.length === 1) {
           boardSearchQuery += keyName;
           selectedIndex = 0; // Reset selection when search changes
           updateContent();
+          refreshFooter();
         }
       } else if (keyName === "/") {
         // Enter search mode
@@ -987,6 +1011,7 @@ async function main() {
         boardSearchQuery = "";
         selectedIndex = 0;
         updateContent();
+        refreshFooter();
       } else if (keyName === "up" || keyName === "k") {
         selectedIndex = Math.max(0, selectedIndex - 1);
         updateContent();
@@ -1052,14 +1077,17 @@ async function main() {
           // Exit search mode but keep filter active
           searchMode = false;
           updateContent();
+          refreshFooter();
         } else if (keyName === "backspace") {
           searchQuery = searchQuery.slice(0, -1);
           filesSelectedIndex = 0; // Reset selection when search changes
           updateContent();
+          refreshFooter();
         } else if (keyName.length === 1) {
           searchQuery += keyName;
           filesSelectedIndex = 0; // Reset selection when search changes
           updateContent();
+          refreshFooter();
         }
       } else {
         // Normal navigation mode
@@ -1067,6 +1095,7 @@ async function main() {
           // Activate search mode
           searchMode = true;
           updateContent();
+          refreshFooter();
         } else if (keyName === "up" || keyName === "k") {
           filesSelectedIndex = Math.max(0, filesSelectedIndex - 1);
           updateContent();

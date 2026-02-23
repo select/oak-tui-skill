@@ -11,9 +11,8 @@ export interface FooterHint {
 
 export interface FooterComponents {
   footerBox: BoxRenderable;
-  footerKeys: TextRenderable[];
-  footerDescs: TextRenderable[];
-  footerBullets: TextRenderable[];
+  renderer: CliRenderer;
+  renderCounter: number;
 }
 
 /**
@@ -22,7 +21,7 @@ export interface FooterComponents {
 export function createFooter(renderer: CliRenderer): FooterComponents {
   const theme = currentTheme();
 
-  // Footer with keyboard hints
+  // Footer with keyboard hints - overflow hidden to prevent line breaks
   const footerBox = new BoxRenderable(renderer, {
     id: "footer-box",
     width: "100%",
@@ -34,65 +33,77 @@ export function createFooter(renderer: CliRenderer): FooterComponents {
     flexDirection: "row",
     gap: 0,
     flexShrink: 0,
+    overflow: "hidden",
   });
-
-  // Create 4 key-desc-bullet sets using loops
-  const footerKeys: TextRenderable[] = [];
-  const footerDescs: TextRenderable[] = [];
-  const footerBullets: TextRenderable[] = [];
-
-  const initialHints: FooterHint[] = [
-    { key: "↹", label: ": cycle " },
-    { key: "r", label: ": reload " },
-    { key: "d", label: ": remove " },
-    { key: "q", label: ": quit" },
-  ];
-
-  for (let i = 0; i < 4; i++) {
-    const hint = initialHints[i];
-
-    // Key
-    const key = new TextRenderable(renderer, {
-      id: `footer-key${i + 1}`,
-      content: hint.key,
-      fg: theme.colors.text,
-    });
-    footerKeys.push(key);
-
-    // Description
-    const desc = new TextRenderable(renderer, {
-      id: `footer-desc${i + 1}`,
-      content: hint.label,
-      fg: theme.colors.textMuted,
-    });
-    footerDescs.push(desc);
-
-    // Bullet separator (except after last item)
-    if (i < 3) {
-      const bullet = new TextRenderable(renderer, {
-        id: `footer-bullet${i + 1}`,
-        content: "• ",
-        fg: "#2d3748", // Search background color for subtle appearance
-      });
-      footerBullets.push(bullet);
-    }
-  }
-
-  // Add all renderables to footer box in order
-  for (let i = 0; i < 4; i++) {
-    footerBox.add(footerKeys[i]);
-    footerBox.add(footerDescs[i]);
-    if (i < 3) {
-      footerBox.add(footerBullets[i]);
-    }
-  }
 
   return {
     footerBox,
-    footerKeys,
-    footerDescs,
-    footerBullets,
+    renderer,
+    renderCounter: 0,
   };
+}
+
+/**
+ * Clear all children from footer box
+ */
+function clearFooter(footerBox: BoxRenderable): void {
+  const children = footerBox.getChildren();
+  for (const child of children) {
+    footerBox.remove(child.id);
+    child.destroyRecursively();
+  }
+}
+
+/**
+ * Render footer hints dynamically
+ */
+function renderFooterHints(
+  components: FooterComponents,
+  hints: FooterHint[],
+): void {
+  const { footerBox, renderer } = components;
+  const theme = currentTheme();
+
+  // Clear existing content
+  clearFooter(footerBox);
+
+  // Increment render counter for unique IDs
+  components.renderCounter++;
+  const counter = components.renderCounter;
+
+  // Add hints dynamically
+  for (let i = 0; i < hints.length; i++) {
+    const hint = hints[i];
+
+    // Skip empty hints
+    if (!hint.key && !hint.label) continue;
+
+    // Key
+    const key = new TextRenderable(renderer, {
+      id: `footer-key-${counter}-${i}`,
+      content: hint.key,
+      fg: theme.colors.text,
+    });
+    footerBox.add(key);
+
+    // Description
+    const desc = new TextRenderable(renderer, {
+      id: `footer-desc-${counter}-${i}`,
+      content: hint.label,
+      fg: theme.colors.textMuted,
+    });
+    footerBox.add(desc);
+
+    // Bullet separator (except after last item)
+    if (i < hints.length - 1) {
+      const bullet = new TextRenderable(renderer, {
+        id: `footer-bullet-${counter}-${i}`,
+        content: "• ",
+        fg: "#2d3748",
+      });
+      footerBox.add(bullet);
+    }
+  }
 }
 
 /**
@@ -111,8 +122,6 @@ export function updateFooter(
   },
   confirmDeleteState?: ConfirmDeleteState,
 ): void {
-  const { footerKeys, footerDescs, footerBullets } = components;
-
   let hints: FooterHint[] = [];
 
   // If confirm delete popup is visible, show delete confirmation hints
@@ -120,8 +129,7 @@ export function updateFooter(
     hints = [
       { key: "d", label: ": delete " },
       { key: "c", label: ": cancel " },
-      { key: "Esc", label: ": cancel " },
-      { key: "", label: "" },
+      { key: "Esc", label: ": cancel" },
     ];
   } else {
     // Determine current search state based on active tab
@@ -186,22 +194,6 @@ export function updateFooter(
     }
   }
 
-  // Update footer components
-  for (let i = 0; i < 4; i++) {
-    if (i < hints.length) {
-      footerKeys[i].content = hints[i].key;
-      footerDescs[i].content = hints[i].label;
-      footerKeys[i].visible = true;
-      footerDescs[i].visible = true;
-      if (i < footerBullets.length) {
-        footerBullets[i].visible = i < hints.length - 1;
-      }
-    } else {
-      footerKeys[i].visible = false;
-      footerDescs[i].visible = false;
-      if (i < footerBullets.length) {
-        footerBullets[i].visible = false;
-      }
-    }
-  }
+  // Render the hints dynamically
+  renderFooterHints(components, hints);
 }

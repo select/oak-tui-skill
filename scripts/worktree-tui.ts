@@ -441,6 +441,8 @@ async function main() {
     ui.titleText.content = `🌳 Oak`;
     debug("Title updated, calling updateContent()");
     updateContent();
+    refreshFooter();
+    renderer.requestRender();
     debug("Reload complete");
   }
 
@@ -1325,6 +1327,8 @@ async function main() {
 
   // Initial render
   updateContent();
+  refreshFooter();
+  renderer.requestRender();
   debug("Initial render complete");
 
   // Keep the process alive - wait indefinitely

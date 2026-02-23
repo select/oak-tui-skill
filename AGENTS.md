@@ -139,43 +139,6 @@ new BoxRenderable(renderer, {
 });
 ```
 
-### Error Handling
-
-- Use try/catch for git commands and file operations
-- Empty catch blocks are acceptable for non-critical operations (e.g., cleanup)
-- Log errors in debug mode using the debug logging pattern
-
-```typescript
-// Debug logging pattern
-const DEBUG = process.argv.includes("--debug");
-function debugLog(message: string) {
-  if (!DEBUG) return;
-  const timestamp = new Date().toLocaleTimeString();
-  appendFileSync(DEBUG_LOG_PATH, `[${timestamp}] ${message}\n`);
-}
-
-// Error handling
-try {
-  const result = execSync("git worktree list", { encoding: "utf-8" });
-} catch (error) {
-  debugLog(`Git command failed: ${error}`);
-  return [];
-}
-```
-
-### Async Patterns
-
-- Use `async/await` for asynchronous operations
-- Main entry uses a Promise to keep the process alive:
-
-```typescript
-async function main() {
-  // ... setup
-  await new Promise(() => {}); // Keep process alive
-}
-main();
-```
-
 ### UI Component Patterns
 
 - Always provide unique `id` for renderables (use `renderCounter` for dynamic items)
@@ -201,28 +164,6 @@ User data is stored in `~/.local/share/oak-tui/`:
 - `recent-projects.json` - List of recently accessed project paths
 - `debug.log` - Debug output when `--debug` flag is used
 - `tui.sock` - Unix socket for single-instance enforcement
-
-## Color Scheme (OpenCode Theme)
-
-Use these colors for consistency with OpenCode:
-
-| Purpose             | Hex       |
-| ------------------- | --------- |
-| Background          | `#0a0a0a` |
-| Panel/Header/Footer | `#141414` |
-| Primary accent      | `#fab283` |
-| Text                | `#eeeeee` |
-| Text muted          | `#808080` |
-| Blue (directories)  | `#5c9cf5` |
-| Green (git/success) | `#7fd88f` |
-| Error               | `#e06c75` |
-
-## Common Gotchas
-
-1. **Symlink**: This project may be symlinked from `~/.config/opencode/skills/oak-tui-skill`
-2. **Single instance**: The TUI enforces single-instance via Unix socket - kill existing before restart
-3. **Tmux required**: The TUI is designed to run in a tmux pane
-4. **Bun runtime**: Use `bun` not `node` - the project uses Bun-specific APIs
 
 ## Debugging the TUI
 
@@ -274,6 +215,25 @@ debugLog(
   `State changed: selectedIndex=${selectedIndex}, activeTab=${activeTab}`,
 );
 debugLog(`Issue data: ${JSON.stringify(issue, null, 2)}`);
+```
+
+### Visual Selection Indicator
+
+When running with the `--debug` flag, a visual indicator ('→') appears before the currently selected item in all tabs (Projects, Board, Files, Themes). This makes it easy to see which line is keyboard-selected when capturing tmux panes for debugging:
+
+```bash
+# Launch with debug mode
+~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --dev --debug
+
+# Capture pane to see the indicator
+tmux capture-pane -t oak-tui -p
+```
+
+The indicator will appear like this:
+
+```
+│→ ●                                     oak-tui-skill-dwv ●│
+│Add keyboard navigation and selection to themes tab        │
 ```
 
 # 🚨 SESSION CLOSE PROTOCOL 🚨

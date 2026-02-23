@@ -75,7 +75,13 @@ If user chooses "Cancel", stop here. Otherwise, kill existing instance:
 
 ### Restart TUI
 
-To restart the TUI after making changes:
+**Fast restart** (recommended - keeps tmux pane, ~100ms):
+
+```bash
+~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --restart
+```
+
+**Full restart** (kills and relaunches):
 
 1. **Kill existing**: `~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --kill`
 2. **Relaunch**: `~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --dev`
@@ -115,6 +121,7 @@ The `scripts/launch.sh` script supports the following options:
 | Option         | Description                                                                        |
 | -------------- | ---------------------------------------------------------------------------------- |
 | `--check-only` | Check if instance is running, output `EXISTING_INSTANCE_DETECTED` or `NO_INSTANCE` |
+| `--restart`    | Fast restart of existing TUI (sends restart command via socket, ~100ms)            |
 | `--kill`       | Kill existing TUI processes and clean up socket                                    |
 | `--dev`        | Launch in dev mode with file watching                                              |
 | `--debug`      | Enable verbose logging for the launch script itself                                |

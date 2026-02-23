@@ -22,6 +22,9 @@ bun install
 # Launch TUI in dev mode with debug logging
 ~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --dev --debug
 
+# Restart existing TUI instance (fast, no tmux pane recreation)
+~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --restart
+
 # Kill existing TUI instance
 ~/.config/opencode/skills/oak-tui-skill/scripts/launch.sh --kill
 

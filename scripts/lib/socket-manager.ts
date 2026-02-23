@@ -99,9 +99,39 @@ export async function sendReloadCommand(dir: string): Promise<boolean> {
   });
 }
 
+/**
+ * Send restart command to existing instance
+ */
+export async function sendRestartCommand(): Promise<boolean> {
+  debug("sendRestartCommand called");
+  return new Promise((resolve) => {
+    const client = createConnection(SOCKET_FILE);
+    const timeout = setTimeout(() => {
+      debug("Restart command timeout");
+      client.destroy();
+      resolve(false);
+    }, 1000);
+
+    client.on("connect", () => {
+      debug("Connected, sending restart command");
+      client.write(JSON.stringify({ command: "restart" }));
+      client.end();
+      clearTimeout(timeout);
+      resolve(true);
+    });
+
+    client.on("error", (err: Readonly<Error>) => {
+      debug("Error sending restart command:", err.message);
+      clearTimeout(timeout);
+      resolve(false);
+    });
+  });
+}
+
 function handleSocketData(
   dataStr: string,
   onReload: (dir: string) => void,
+  onRestart: () => void,
 ): void {
   try {
     const parsed: unknown = JSON.parse(dataStr);
@@ -113,6 +143,9 @@ function handleSocketData(
     if (parsed.command === "reload" && typeof parsed.dir === "string") {
       debug("Reload command received for dir:", parsed.dir);
       onReload(parsed.dir);
+    } else if (parsed.command === "restart") {
+      debug("Restart command received");
+      onRestart();
     }
   } catch (err) {
     debug("Error parsing socket message:", err);
@@ -122,7 +155,10 @@ function handleSocketData(
 /**
  * Create socket server for single instance detection
  */
-export function createSocketServer(onReload: (dir: string) => void): void {
+export function createSocketServer(
+  onReload: (dir: string) => void,
+  onRestart: () => void,
+): void {
   debug("Creating socket server...");
 
   // Clean up existing socket if stale
@@ -143,7 +179,7 @@ export function createSocketServer(onReload: (dir: string) => void): void {
 
     // Data handler receives string directly due to setEncoding
     socket.on("data", (dataStr: string) => {
-      handleSocketData(dataStr, onReload);
+      handleSocketData(dataStr, onReload, onRestart);
     });
 
     socket.on("error", (err: Readonly<Error>) => {

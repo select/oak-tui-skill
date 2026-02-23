@@ -19,6 +19,7 @@ error() {
 
 # Parse arguments
 MODE="normal"
+DEBUG_FLAG=""
 while [[ $# -gt 0 ]]; do
     case $1 in
         --dev)
@@ -27,7 +28,17 @@ while [[ $# -gt 0 ]]; do
             ;;
         --debug)
             DEBUG=1
+            DEBUG_FLAG="--debug"
             shift
+            ;;
+        --restart)
+            log "Sending restart command to existing TUI instance..."
+            if ! bun run "$SKILL_DIR/scripts/send-restart.ts"; then
+                error "Failed to send restart command (is TUI running?)"
+                exit 1
+            fi
+            echo "Restart command sent successfully"
+            exit 0
             ;;
         --check-only)
             # Check if instance is running
@@ -105,16 +116,14 @@ rm -f "$SOCKET_PATH" 2>/dev/null || true
 sleep 0.3
 
 # Build the command based on mode
-DEBUG_FLAG=""
-if [[ "$DEBUG" == "1" ]]; then
-    DEBUG_FLAG="--debug"
+if [[ "$MODE" == "dev" ]]; then
+    BASE_CMD="cd '$SKILL_DIR' && bun run --watch scripts/worktree-tui.ts $DEBUG_FLAG"
+else
+    BASE_CMD="cd '$(pwd)' && bun run '$SKILL_DIR/scripts/worktree-tui.ts' $DEBUG_FLAG"
 fi
 
-if [[ "$MODE" == "dev" ]]; then
-    CMD="cd '$SKILL_DIR' && exec bun run --watch scripts/worktree-tui.ts $DEBUG_FLAG"
-else
-    CMD="cd '$(pwd)' && exec bun run '$SKILL_DIR/scripts/worktree-tui.ts' $DEBUG_FLAG"
-fi
+# Wrap in a loop that restarts on exit code 42
+CMD="while true; do $BASE_CMD; EXIT_CODE=\$?; if [ \$EXIT_CODE -ne 42 ]; then exit \$EXIT_CODE; fi; sleep 0.1; done"
 
 log "Command: $CMD"
 

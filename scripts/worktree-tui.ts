@@ -427,7 +427,10 @@ async function main() {
   }
 
   // Start socket server
-  createSocketServer(reloadWithDir);
+  createSocketServer(reloadWithDir, () => {
+    debug("Restart command received, exiting with code 42");
+    process.exit(42);
+  });
 
   // Cursor blink interval
   let cursorVisible = true;

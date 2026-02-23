@@ -52,6 +52,13 @@ import {
   type IssuePopupState,
 } from "./components/issue-popup";
 import {
+  renderConfirmDeletePopup,
+  createInitialConfirmDeleteState,
+  showConfirmDelete,
+  hideConfirmDelete,
+  type ConfirmDeleteState,
+} from "./components/confirm-popup";
+import {
   createUIComponents,
   renderProjects,
   renderFiles,
@@ -316,6 +323,9 @@ async function main() {
     scrollOffset: 0,
     visible: false,
   };
+  // Confirm delete popup state
+  let confirmDeleteState: ConfirmDeleteState =
+    createInitialConfirmDeleteState();
 
   // Worktree switch handler - used by both keyboard and mouse
   const handleWorktreeSwitch = (worktreePath: string, projectPath: string) => {
@@ -458,14 +468,19 @@ async function main() {
 
   // Helper to update footer with current state
   function refreshFooter() {
-    updateFooter(ui.footer, activeTab, {
-      projectsSearchMode,
-      projectsSearchQuery,
-      boardSearchMode,
-      boardSearchQuery,
-      searchMode,
-      searchQuery,
-    });
+    updateFooter(
+      ui.footer,
+      activeTab,
+      {
+        projectsSearchMode,
+        projectsSearchQuery,
+        boardSearchMode,
+        boardSearchQuery,
+        searchMode,
+        searchQuery,
+      },
+      confirmDeleteState,
+    );
   }
 
   // Update content function
@@ -521,17 +536,28 @@ async function main() {
         lastProjectsSearchQuery = projectsSearchQuery;
       }
 
-      renderProjects(
-        renderer,
-        ui.contentScroll,
-        filteredProjectsCache,
-        renderCounter,
-        expandedProjects,
-        updateContent,
-        selectedIndex,
-        activeWorktreePath,
-        handleWorktreeSwitch,
-      );
+      // Show confirm delete popup if visible
+      if (confirmDeleteState.visible) {
+        renderConfirmDeletePopup(
+          renderer,
+          ui.contentScroll,
+          confirmDeleteState,
+          currentTheme(),
+          renderCounter,
+        );
+      } else {
+        renderProjects(
+          renderer,
+          ui.contentScroll,
+          filteredProjectsCache,
+          renderCounter,
+          expandedProjects,
+          updateContent,
+          selectedIndex,
+          activeWorktreePath,
+          handleWorktreeSwitch,
+        );
+      }
 
       // Set up auto-refresh every 5 seconds
       debug("Setting up projects auto-refresh (5s interval)");
@@ -619,8 +645,18 @@ async function main() {
       boardIssues = fetchAndGroupIssues(activeWorktreePath);
       const filteredIssues = filterBoardIssues(boardIssues, boardSearchQuery);
 
-      // Show popup if visible, otherwise show board
-      if (issuePopupState.visible && issuePopupState.issue) {
+      // Show confirm delete popup if visible
+      if (confirmDeleteState.visible) {
+        renderConfirmDeletePopup(
+          renderer,
+          ui.contentScroll,
+          confirmDeleteState,
+          currentTheme(),
+          renderCounter,
+        );
+      }
+      // Show issue popup if visible, otherwise show board
+      else if (issuePopupState.visible && issuePopupState.issue) {
         renderIssuePopup(
           renderer,
           ui.contentScroll,
@@ -797,7 +833,14 @@ async function main() {
       selectedIndex = 0;
       updateContent();
     } else if (keyName === "escape") {
-      // Close popup if open
+      // Close confirm delete popup if open
+      if (confirmDeleteState.visible) {
+        hideConfirmDelete(confirmDeleteState);
+        refreshFooter();
+        updateContent();
+        return;
+      }
+      // Close issue popup if open
       if (issuePopupState.visible) {
         issuePopupState.visible = false;
         issuePopupState.issue = null;
@@ -879,6 +922,43 @@ async function main() {
           refreshFooter();
           return;
         }
+        return;
+      }
+
+      // Confirm delete popup handling
+      if (confirmDeleteState.visible) {
+        if (keyName === "d") {
+          // Confirm deletion
+          const projectPath = confirmDeleteState.projectPath;
+          if (projectPath) {
+            const removed = removeRecentProject(projectPath);
+            if (removed) {
+              debug("Removed project from recent list:", projectPath);
+              // Reload project list
+              recentProjects = loadRecentProjects();
+              projectNodes = buildProjectNodes(recentProjects, gitRoot);
+              // Adjust selected index if needed
+              const newTotal = getSelectableCount(
+                projectNodes,
+                expandedProjects,
+              );
+              if (selectedIndex >= newTotal) {
+                selectedIndex = Math.max(0, newTotal - 1);
+              }
+            }
+          }
+          hideConfirmDelete(confirmDeleteState);
+          refreshFooter();
+          updateContent();
+          return;
+        } else if (keyName === "c") {
+          // Cancel deletion
+          hideConfirmDelete(confirmDeleteState);
+          refreshFooter();
+          updateContent();
+          return;
+        }
+        // Block all other keys while popup is visible
         return;
       }
 
@@ -973,7 +1053,7 @@ async function main() {
           }
         }
       } else if (keyName === "d") {
-        // Delete project from recent list (only for project headers, not worktrees)
+        // Show confirmation popup for deleting project from recent list
         const item = getItemAtIndex(
           filteredProjects,
           expandedProjects,
@@ -981,22 +1061,16 @@ async function main() {
         );
         if (item?.type === "project") {
           const node = filteredProjects[item.projectIndex];
-          const removed = removeRecentProject(node.path);
-          if (removed) {
-            debug("Removed project from recent list:", node.path);
-            // Reload project list
-            recentProjects = loadRecentProjects();
-            projectNodes = buildProjectNodes(recentProjects, gitRoot);
-            // Adjust selected index if needed
-            const newTotal = getSelectableCount(projectNodes, expandedProjects);
-            if (selectedIndex >= newTotal) {
-              selectedIndex = Math.max(0, newTotal - 1);
-            }
-            updateContent();
-          }
+          showConfirmDelete(confirmDeleteState, node.path);
+          refreshFooter();
+          updateContent();
         }
       }
     } else if (activeTab === "board") {
+      // Block all keyboard shortcuts if confirm delete popup is visible
+      if (confirmDeleteState.visible) {
+        return;
+      }
       // Handle popup navigation first
       if (issuePopupState.visible) {
         if (keyName === "j" || keyName === "down") {
@@ -1099,6 +1173,10 @@ async function main() {
         updateContent();
       }
     } else if (activeTab === "files") {
+      // Block all keyboard shortcuts if confirm delete popup is visible
+      if (confirmDeleteState.visible) {
+        return;
+      }
       // Files navigation with vim keys and arrow keys
       const totalFiles = getFilesSelectableCount(
         fileTree,

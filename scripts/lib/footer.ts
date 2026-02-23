@@ -1,6 +1,7 @@
 import type { CliRenderer } from "@opentui/core";
 import { BoxRenderable, TextRenderable } from "@opentui/core";
 import type { TabId } from "./types";
+import type { ConfirmDeleteState } from "../components/confirm-popup";
 import { currentTheme } from "./theme-manager";
 
 export interface FooterHint {
@@ -95,7 +96,7 @@ export function createFooter(renderer: CliRenderer): FooterComponents {
 }
 
 /**
- * Update footer hints based on search state
+ * Update footer hints based on search state and confirm delete state
  */
 export function updateFooter(
   components: FooterComponents,
@@ -108,69 +109,80 @@ export function updateFooter(
     searchMode: boolean;
     searchQuery: string;
   },
+  confirmDeleteState?: ConfirmDeleteState,
 ): void {
   const { footerKeys, footerDescs, footerBullets } = components;
 
-  // Determine current search state based on active tab
-  let isSearchMode = false;
-  let hasSearchQuery = false;
-
-  if (activeTab === "projects") {
-    isSearchMode = searchState.projectsSearchMode;
-    hasSearchQuery = searchState.projectsSearchQuery.length > 0;
-  } else if (activeTab === "board") {
-    isSearchMode = searchState.boardSearchMode;
-    hasSearchQuery = searchState.boardSearchQuery.length > 0;
-  } else if (activeTab === "files") {
-    isSearchMode = searchState.searchMode;
-    hasSearchQuery = searchState.searchQuery.length > 0;
-  }
-
   let hints: FooterHint[] = [];
 
-  // When actively typing in search (and has at least one character)
-  if (isSearchMode && hasSearchQuery) {
+  // If confirm delete popup is visible, show delete confirmation hints
+  if (confirmDeleteState?.visible) {
     hints = [
-      { key: "↹", label: ": cycle " },
-      { key: "r", label: ": reload " },
+      { key: "d", label: ": delete " },
+      { key: "c", label: ": cancel " },
       { key: "Esc", label: ": cancel " },
-      { key: "↵", label: ": apply" },
+      { key: "", label: "" },
     ];
-  }
-  // When actively typing in search (empty)
-  else if (isSearchMode) {
-    hints = [
-      { key: "↹", label: ": cycle " },
-      { key: "r", label: ": reload " },
-      { key: "Esc", label: ": cancel " },
-      { key: "q", label: ": quit" },
-    ];
-  }
-  // When filter is applied (has query but not in search mode)
-  else if (hasSearchQuery) {
-    hints = [
-      { key: "↹", label: ": cycle " },
-      { key: "/", label: ": search " },
-      { key: "Esc", label: ": clear " },
-      { key: "↵", label: ": clear" },
-    ];
-  }
-  // Default state
-  else {
+  } else {
+    // Determine current search state based on active tab
+    let isSearchMode = false;
+    let hasSearchQuery = false;
+
     if (activeTab === "projects") {
+      isSearchMode = searchState.projectsSearchMode;
+      hasSearchQuery = searchState.projectsSearchQuery.length > 0;
+    } else if (activeTab === "board") {
+      isSearchMode = searchState.boardSearchMode;
+      hasSearchQuery = searchState.boardSearchQuery.length > 0;
+    } else if (activeTab === "files") {
+      isSearchMode = searchState.searchMode;
+      hasSearchQuery = searchState.searchQuery.length > 0;
+    }
+
+    // When actively typing in search (and has at least one character)
+    if (isSearchMode && hasSearchQuery) {
       hints = [
         { key: "↹", label: ": cycle " },
         { key: "r", label: ": reload " },
-        { key: "d", label: ": remove " },
-        { key: "/", label: ": search" },
+        { key: "Esc", label: ": cancel " },
+        { key: "↵", label: ": apply" },
       ];
-    } else {
+    }
+    // When actively typing in search (empty)
+    else if (isSearchMode) {
       hints = [
         { key: "↹", label: ": cycle " },
         { key: "r", label: ": reload " },
-        { key: "/", label: ": search " },
+        { key: "Esc", label: ": cancel " },
         { key: "q", label: ": quit" },
       ];
+    }
+    // When filter is applied (has query but not in search mode)
+    else if (hasSearchQuery) {
+      hints = [
+        { key: "↹", label: ": cycle " },
+        { key: "/", label: ": search " },
+        { key: "Esc", label: ": clear " },
+        { key: "↵", label: ": clear" },
+      ];
+    }
+    // Default state
+    else {
+      if (activeTab === "projects") {
+        hints = [
+          { key: "↹", label: ": cycle " },
+          { key: "r", label: ": reload " },
+          { key: "d", label: ": remove " },
+          { key: "/", label: ": search" },
+        ];
+      } else {
+        hints = [
+          { key: "↹", label: ": cycle " },
+          { key: "r", label: ": reload " },
+          { key: "/", label: ": search " },
+          { key: "q", label: ": quit" },
+        ];
+      }
     }
   }
 

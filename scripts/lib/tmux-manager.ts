@@ -3,12 +3,14 @@
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import type { BackgroundPane } from "./types";
 import { getCommandsForWorktree } from "./config-manager";
+import { DATA_DIR } from "./constants";
+import { debug, setDebugFn } from "./debug-utils";
+
+export { debug, setDebugFn };
 
 // Data directory for persistence
-const DATA_DIR = join(homedir(), ".local", "share", "oak-tui");
 const BG_PANES_FILE = join(DATA_DIR, "background-panes.json");
 
 // Track background panes (worktree path -> BackgroundPane)
@@ -16,17 +18,6 @@ const backgroundPanes = new Map<string, BackgroundPane>();
 
 // Track the oak TUI pane ID
 let oakPaneId: string | null = null;
-
-// Debug function (can be overridden)
-let debugFn: (...args: readonly unknown[]) => void = () => {};
-
-export function setDebugFn(fn: (...args: readonly unknown[]) => void): void {
-  debugFn = fn;
-}
-
-function debug(...args: readonly unknown[]): void {
-  debugFn(...args);
-}
 
 /**
  * Initialize the tmux manager - load persisted background panes

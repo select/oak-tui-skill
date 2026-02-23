@@ -4,22 +4,8 @@ import { execSync } from "node:child_process";
 import { readdirSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { BeadsIssue, GroupedIssues, ReadonlyGroupedIssues } from "./types";
-
-// Directories to ignore during .beads search (same as file-tree.ts)
-const IGNORED_DIRS = new Set([
-  "node_modules",
-  ".git",
-  "dist",
-  "build",
-  ".next",
-  ".cache",
-  "coverage",
-  "__pycache__",
-  ".venv",
-  "venv",
-  ".turbo",
-  ".bun",
-]);
+import { IGNORED_DIRS } from "./constants";
+import { capitalize } from "./string-utils";
 
 /**
  * Find .beads directory using breadth-first search.
@@ -291,7 +277,6 @@ export function getNextSectionStart(
   currentIndex: number,
 ): number {
   const starts = getSectionStartIndices(grouped);
-  const _total = getTotalBoardCount(grouped);
 
   // Determine current section and find next non-empty section
   const sections: (keyof GroupedIssues)[] = [
@@ -302,7 +287,6 @@ export function getNextSectionStart(
   ];
 
   for (let i = 0; i < sections.length - 1; i++) {
-    const _section = sections[i];
     const nextSection = sections[i + 1];
     const sectionEnd = starts[nextSection];
 
@@ -421,26 +405,6 @@ export function getPriorityColor(priority: number): string {
 }
 
 /**
- * Get type icon (single letter)
- */
-export function getTypeIcon(type: string): string {
-  switch (type) {
-    case "feature":
-      return "F";
-    case "bug":
-      return "B";
-    case "task":
-      return "T";
-    case "epic":
-      return "E";
-    case "chore":
-      return "C";
-    default:
-      return "?";
-  }
-}
-
-/**
  * Get type color
  */
 export function getTypeColor(type: string): string {
@@ -461,8 +425,19 @@ export function getTypeColor(type: string): string {
 }
 
 /**
- * Capitalize first letter
+ * Get status label from status string
  */
-export function capitalize(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
+export function getStatusLabel(status: string): string {
+  switch (status) {
+    case "open":
+      return "Open";
+    case "in_progress":
+      return "In Progress";
+    case "blocked":
+      return "Blocked";
+    case "closed":
+      return "Closed";
+    default:
+      return capitalize(status);
+  }
 }

@@ -3,20 +3,19 @@
 import { execSync } from "child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join, basename } from "path";
-import { homedir } from "os";
 import type { Worktree, ProjectNode } from "./types";
 import { hasBackgroundPane } from "./tmux-manager";
+import { DATA_DIR } from "./constants";
+import { debug, setDebugFn } from "./debug-utils";
+import { isRecord } from "./type-guards";
 
-const DATA_DIR = join(homedir(), ".local", "share", "oak-tui");
+export { debug, setDebugFn };
+
 const RECENT_PROJECTS_FILE = join(DATA_DIR, "recent-projects.json");
 
 interface RecentProject {
   path: string;
   lastAccessed: number;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isRecentProject(value: unknown): value is RecentProject {
@@ -30,14 +29,6 @@ function isRecentProject(value: unknown): value is RecentProject {
 
 function isRecentProjectArray(value: unknown): value is RecentProject[] {
   return Array.isArray(value) && value.every(isRecentProject);
-}
-
-export function debug(..._args: readonly unknown[]): void {
-  // Will be injected by main app
-}
-
-export function setDebugFn(fn: (...args: readonly unknown[]) => void): void {
-  Object.assign(debug, fn);
 }
 
 /**

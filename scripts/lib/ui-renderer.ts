@@ -14,10 +14,7 @@ import type {
   GroupedIssues,
   BeadsIssue,
 } from "./types";
-import type {
-  FileTreeNode,
-  ReadonlyFileTreeNode,
-} from "../components/file-tree";
+import type { ReadonlyFileTreeNode } from "../components/file-tree";
 import {
   getPriorityIcon,
   getPriorityColor,
@@ -30,7 +27,11 @@ import {
 } from "./tmux-manager";
 import { createFooter, type FooterComponents } from "./footer";
 import { basename } from "node:path";
-import { filterFileTree } from "../components/file-tree";
+import {
+  filterFileTree,
+  flattenFileTree,
+  toMutableNode,
+} from "../components/file-tree";
 import { currentTheme } from "./theme-manager";
 
 // Helper to count total selectable items (projects + their worktrees if expanded)
@@ -76,15 +77,41 @@ export function getItemAtIndex(
   return null;
 }
 
-// Helper to convert readonly file tree node to mutable
-function toMutableFileTree(node: ReadonlyFileTreeNode): FileTreeNode {
+/**
+ * Factory function to create hover handlers that change background color on mouse over/out.
+ * Avoids re-rendering if the item is already selected (keyboard selection).
+ *
+ * @param renderable - The renderable to apply hover effect to
+ * @param renderer - The CLI renderer for requesting re-renders
+ * @param isSelected - Whether the item is currently selected (keyboard selection)
+ * @returns Object with onMouseOver and onMouseOut handlers
+ */
+// eslint-disable-next-line @typescript-eslint/prefer-readonly-parameter-types -- BoxRenderable and CliRenderer are mutable external types
+function createHoverHandlers(
+  renderable: BoxRenderable,
+  renderer: CliRenderer,
+  isSelected: boolean,
+): {
+  onMouseOver: () => void;
+  onMouseOut: () => void;
+} {
   return {
-    name: node.name,
-    path: node.path,
-    isDirectory: node.isDirectory,
-    isSymlink: node.isSymlink,
-    depth: node.depth,
-    children: node.children?.map(toMutableFileTree),
+    onMouseOver: () => {
+      if (!isSelected) {
+        renderable.backgroundColor = "#3a3a3a";
+        void Promise.resolve().then(() => {
+          renderer.requestRender();
+        });
+      }
+    },
+    onMouseOut: () => {
+      if (!isSelected) {
+        renderable.backgroundColor = undefined;
+        void Promise.resolve().then(() => {
+          renderer.requestRender();
+        });
+      }
+    },
   };
 }
 
@@ -96,8 +123,8 @@ export function getFilesSelectableCount(
 ): number {
   const filteredTree = searchQuery
     ? filterFileTree(fileTree, searchQuery)
-    : fileTree.map(toMutableFileTree);
-  const flatFiles = flattenFileTree(filteredTree, !searchQuery, expandedPaths);
+    : fileTree.map(toMutableNode);
+  const flatFiles = flattenFileTree(filteredTree, expandedPaths, searchQuery);
   return flatFiles.length;
 }
 
@@ -107,11 +134,11 @@ export function getFileAtIndex(
   searchQuery: string,
   expandedPaths: ReadonlySet<string>,
   index: number,
-): FileTreeNode | null {
+): ReadonlyFileTreeNode | null {
   const filteredTree = searchQuery
     ? filterFileTree(fileTree, searchQuery)
-    : fileTree.map(toMutableFileTree);
-  const flatFiles = flattenFileTree(filteredTree, !searchQuery, expandedPaths);
+    : fileTree.map(toMutableNode);
+  const flatFiles = flattenFileTree(filteredTree, expandedPaths, searchQuery);
   return flatFiles[index] ?? null;
 }
 
@@ -404,23 +431,16 @@ export function renderProjects(
       width: "100%",
       flexDirection: "row",
       backgroundColor: projectIsSelected ? "#3a3a3a" : undefined,
-      onMouseOver: () => {
-        if (!projectIsSelected) {
-          projectHeader.backgroundColor = "#3a3a3a";
-          void Promise.resolve().then(() => {
-            renderer.requestRender();
-          });
-        }
-      },
-      onMouseOut: () => {
-        if (!projectIsSelected) {
-          projectHeader.backgroundColor = undefined;
-          void Promise.resolve().then(() => {
-            renderer.requestRender();
-          });
-        }
-      },
     });
+
+    // Apply hover handlers
+    const projectHoverHandlers = createHoverHandlers(
+      projectHeader,
+      renderer,
+      projectIsSelected,
+    );
+    projectHeader.onMouseOver = projectHoverHandlers.onMouseOver;
+    projectHeader.onMouseOut = projectHoverHandlers.onMouseOut;
 
     const expandIconText = new TextRenderable(renderer, {
       id: `project-expand-${renderCounter}-${i}`,
@@ -472,23 +492,16 @@ export function renderProjects(
           flexDirection: "column",
           paddingLeft: 1,
           backgroundColor: wtIsSelected ? "#3a3a3a" : undefined,
-          onMouseOver: () => {
-            if (!wtIsSelected) {
-              wtBox.backgroundColor = "#3a3a3a";
-              void Promise.resolve().then(() => {
-                renderer.requestRender();
-              });
-            }
-          },
-          onMouseOut: () => {
-            if (!wtIsSelected) {
-              wtBox.backgroundColor = undefined;
-              void Promise.resolve().then(() => {
-                renderer.requestRender();
-              });
-            }
-          },
         });
+
+        // Apply hover handlers
+        const wtHoverHandlers = createHoverHandlers(
+          wtBox,
+          renderer,
+          wtIsSelected,
+        );
+        wtBox.onMouseOver = wtHoverHandlers.onMouseOver;
+        wtBox.onMouseOut = wtHoverHandlers.onMouseOut;
 
         // Check if this worktree is the current active pane (purple circle)
         const isCurrentPane = currentPath === wt.path;
@@ -581,25 +594,6 @@ function getFileIcon(filename: string, isDirectory: boolean): string {
   return iconMap[ext ?? ""] ?? "○";
 }
 
-function flattenFileTree(
-  nodes: readonly FileTreeNode[],
-  respectExpanded = true,
-  expandedPaths: ReadonlySet<string>,
-): FileTreeNode[] {
-  const result: FileTreeNode[] = [];
-  for (const node of nodes) {
-    result.push(node);
-    if (node.children !== undefined) {
-      if (!respectExpanded || expandedPaths.has(node.path)) {
-        result.push(
-          ...flattenFileTree(node.children, respectExpanded, expandedPaths),
-        );
-      }
-    }
-  }
-  return result;
-}
-
 // eslint-disable-next-line @typescript-eslint/prefer-readonly-parameter-types -- CliRenderer and ScrollBoxRenderable are mutable external types
 export function renderFiles(
   renderer: CliRenderer,
@@ -614,8 +608,8 @@ export function renderFiles(
 ): void {
   const filteredTree = searchQuery
     ? filterFileTree(fileTree, searchQuery)
-    : fileTree.map(toMutableFileTree);
-  const flatFiles = flattenFileTree(filteredTree, !searchQuery, expandedPaths);
+    : fileTree.map(toMutableNode);
+  const flatFiles = flattenFileTree(filteredTree, expandedPaths, searchQuery);
 
   if (flatFiles.length === 0) {
     const emptyText = new TextRenderable(renderer, {
@@ -631,8 +625,6 @@ export function renderFiles(
     const file = flatFiles[i];
     const indent = "  ".repeat(file.depth);
     const isExpanded = expandedPaths.has(file.path);
-    const _hasChildren =
-      file.children !== undefined && file.children.length > 0;
     const isSelected = i === selectedIndex;
 
     let icon: string;
@@ -646,23 +638,16 @@ export function renderFiles(
       id: `file-${renderCounter}-${i}`,
       width: "100%",
       backgroundColor: isSelected ? "#3a3a3a" : undefined,
-      onMouseOver: () => {
-        if (!isSelected) {
-          fileBox.backgroundColor = "#3a3a3a";
-          void Promise.resolve().then(() => {
-            renderer.requestRender();
-          });
-        }
-      },
-      onMouseOut: () => {
-        if (!isSelected) {
-          fileBox.backgroundColor = undefined;
-          void Promise.resolve().then(() => {
-            renderer.requestRender();
-          });
-        }
-      },
     });
+
+    // Apply hover handlers
+    const fileHoverHandlers = createHoverHandlers(
+      fileBox,
+      renderer,
+      isSelected,
+    );
+    fileBox.onMouseOver = fileHoverHandlers.onMouseOver;
+    fileBox.onMouseOut = fileHoverHandlers.onMouseOut;
 
     const fileName = new TextRenderable(renderer, {
       id: `file-name-${renderCounter}-${i}`,
@@ -869,20 +854,14 @@ export function renderBoard(
       issueBox.add(badgeLine);
       issueBox.add(titleText);
 
-      // Mouse handlers - defer render to avoid crashes during mouse selection
-      issueBox.onMouseOver = () => {
-        issueBox.backgroundColor = "#3a3a3a";
-        void Promise.resolve().then(() => {
-          renderer.requestRender();
-        });
-      };
-
-      issueBox.onMouseOut = () => {
-        issueBox.backgroundColor = isSelected ? "#3a3a3a" : undefined;
-        void Promise.resolve().then(() => {
-          renderer.requestRender();
-        });
-      };
+      // Apply hover handlers
+      const issueHoverHandlers = createHoverHandlers(
+        issueBox,
+        renderer,
+        isSelected,
+      );
+      issueBox.onMouseOver = issueHoverHandlers.onMouseOver;
+      issueBox.onMouseOut = issueHoverHandlers.onMouseOut;
 
       issueBox.onMouseDown = (
         event: Readonly<{ stopPropagation: () => void }>,

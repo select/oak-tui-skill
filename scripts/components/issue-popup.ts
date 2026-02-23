@@ -8,16 +8,18 @@ import {
   type MouseEvent,
 } from "@opentui/core";
 import type { BeadsIssue, Theme, ReadonlyBeadsIssue } from "../lib/types";
-import { getTypeColor } from "../lib/beads-manager";
-import { appendFileSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
+import {
+  getTypeColor,
+  getPriorityLabel,
+  getStatusLabel,
+} from "../lib/beads-manager";
+import { capitalize } from "../lib/string-utils";
+import { createDebugLogger } from "../lib/debug-utils";
 
-const DEBUG_LOG_PATH = join(homedir(), ".local/share/oak-tui/debug.log");
-function debugLog(message: string) {
-  const timestamp = new Date().toLocaleTimeString();
-  appendFileSync(DEBUG_LOG_PATH, `[${timestamp}] [issue-popup] ${message}\n`);
-}
+const debugLog = createDebugLogger(
+  process.argv.includes("--debug"),
+  "issue-popup",
+);
 
 export interface IssuePopupState {
   issue: BeadsIssue | ReadonlyBeadsIssue | null;
@@ -50,23 +52,6 @@ export function scrollPopup(state: IssuePopupState, delta: number): void {
   state.scrollOffset = Math.max(0, state.scrollOffset + delta);
 }
 
-// Priority labels
-const PRIORITY_LABELS: Record<number, string> = {
-  0: "Critical",
-  1: "High",
-  2: "Medium",
-  3: "Low",
-  4: "Lowest",
-};
-
-// Status display
-const STATUS_LABELS: Record<string, string> = {
-  open: "Open",
-  in_progress: "In Progress",
-  blocked: "Blocked",
-  closed: "Closed",
-};
-
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toLocaleDateString("en-US", {
@@ -76,10 +61,6 @@ function formatDate(dateStr: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function capitalizeFirst(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 /**
@@ -181,7 +162,7 @@ export function renderIssuePopup(
   // Metadata line
   const metaLine = new TextRenderable(renderer, {
     id: `popup-meta-${renderCounter}`,
-    content: `Status: ${STATUS_LABELS[issue.status] ?? issue.status}  │  Priority: ${PRIORITY_LABELS[issue.priority] ?? issue.priority}  │  Type: ${capitalizeFirst(issue.issue_type)}${issue.assignee != null ? `  │  Assignee: ${issue.assignee}` : ""}`,
+    content: `Status: ${getStatusLabel(issue.status)}  │  Priority: ${getPriorityLabel(issue.priority)}  │  Type: ${capitalize(issue.issue_type)}${issue.assignee != null ? `  │  Assignee: ${issue.assignee}` : ""}`,
     fg: theme.colors.text,
   });
   parent.add(metaLine);

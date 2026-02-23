@@ -8,6 +8,7 @@ import {
 import { readdirSync, statSync, lstatSync } from "fs";
 import { join } from "path";
 import Fuse from "fuse.js";
+import { IGNORED_DIRS } from "../lib/constants";
 
 // File tree node interface
 export interface FileTreeNode {
@@ -28,22 +29,6 @@ export interface ReadonlyFileTreeNode {
   readonly depth: number;
   readonly children?: readonly ReadonlyFileTreeNode[];
 }
-
-// Directories to always ignore (too large/not useful)
-const IGNORED_DIRS = new Set([
-  "node_modules",
-  ".git",
-  "dist",
-  "build",
-  ".next",
-  ".cache",
-  "coverage",
-  "__pycache__",
-  ".venv",
-  "venv",
-  ".turbo",
-  ".bun",
-]);
 
 // File icons by extension (B&W Unicode)
 const FILE_ICONS: Record<string, string> = {
@@ -183,7 +168,7 @@ export function fuzzyMatch(
 }
 
 // Convert a readonly node to a mutable FileTreeNode (deep copy)
-function toMutableNode(node: ReadonlyFileTreeNode): FileTreeNode {
+export function toMutableNode(node: ReadonlyFileTreeNode): FileTreeNode {
   return {
     name: node.name,
     path: node.path,

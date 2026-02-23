@@ -1,11 +1,10 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import type { Theme } from "./types";
 import { allThemes } from "./themes";
+import { DATA_DIR } from "./constants";
 
 // Config file path
-const DATA_DIR = join(homedir(), ".local", "share", "oak-tui");
 const CONFIG_FILE = join(DATA_DIR, "config.json");
 
 // Theme registry

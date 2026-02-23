@@ -46,6 +46,7 @@ import {
   loadNodeChildren,
   ensureChildrenLoaded,
 } from "./components/file-tree";
+import { copyToClipboard } from "./lib/clipboard-utils";
 import {
   renderIssuePopup,
   hidePopup,
@@ -88,40 +89,24 @@ import {
 } from "./lib/beads-manager";
 import type { GroupedIssues, ReadonlyBeadsIssue } from "./lib/types";
 import { initTmuxManager, setDebugFn } from "./lib/tmux-manager";
+import { createDebugLogger } from "./lib/debug-utils";
 import {
-  appendFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
   writeFileSync,
   unlinkSync,
 } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { execSync } from "node:child_process";
 
 // Debug logging - must be defined before setDebugFn
 const DEBUG = process.argv.includes("--debug");
 const CHECK_ONLY = process.argv.includes("--check-only");
-const DEBUG_LOG_PATH = `${homedir()}/.local/share/oak-tui/debug.log`;
 
-function debug(...args: readonly unknown[]): void {
-  if (!DEBUG) return;
-  const timestamp = new Date().toLocaleTimeString();
-  const message = args
-    .map((a) => {
-      if (typeof a === "string") return a;
-      if (typeof a === "number" || typeof a === "boolean") return String(a);
-      if (a === null) return "null";
-      if (a === undefined) return "undefined";
-      return JSON.stringify(a);
-    })
-    .join(" ");
-  appendFileSync(DEBUG_LOG_PATH, `[${timestamp}] ${message}\n`);
-}
+const debug = createDebugLogger(DEBUG);
 
 // UI state persistence
-const DATA_DIR = join(homedir(), ".local", "share", "oak-tui");
+import { DATA_DIR } from "./lib/constants";
 const UI_STATE_PATH = join(DATA_DIR, "ui-state.json");
 
 function loadUIState(): { activeTab?: TabId } {
@@ -180,9 +165,9 @@ function isError(value: unknown): value is Error {
 }
 
 // Crash recovery - using type guards to satisfy strict linting
-process.on("uncaughtException", (error) => {
+function handleCrashRecovery(error: unknown, source: string): void {
   const message = isError(error) ? error.message : String(error);
-  console.error("\n\n❌ Crash detected:", message);
+  console.error(`\n\n❌ ${source}:`, message);
   console.error("\nPress 'r' to reload, or Ctrl+C to exit");
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(true);
@@ -193,20 +178,14 @@ process.on("uncaughtException", (error) => {
       }
     });
   }
+}
+
+process.on("uncaughtException", (error) => {
+  handleCrashRecovery(error, "Crash detected");
 });
 
 process.on("unhandledRejection", (reason) => {
-  console.error("\n\n❌ Unhandled rejection:", reason);
-  console.error("\nPress 'r' to reload, or Ctrl+C to exit");
-  if (process.stdin.isTTY) {
-    process.stdin.setRawMode(true);
-    process.stdin.on("data", (key) => {
-      if (key.toString() === "r") {
-        console.clear();
-        process.exit(42);
-      }
-    });
-  }
+  handleCrashRecovery(reason, "Unhandled rejection");
 });
 
 async function main() {
@@ -1149,23 +1128,11 @@ async function main() {
         const result = getIssueAtIndex(filteredIssues, selectedIndex);
         if (result !== null) {
           // Copy issue ID to clipboard using xclip or xsel
-          try {
-            execSync(
-              `echo -n "${result.issue.id}" | xclip -selection clipboard`,
-              { stdio: "ignore" },
-            );
+          const success = copyToClipboard(result.issue.id);
+          if (success) {
             debug("Copied to clipboard:", result.issue.id);
-          } catch {
-            // Try xsel as fallback
-            try {
-              execSync(
-                `echo -n "${result.issue.id}" | xsel --clipboard --input`,
-                { stdio: "ignore" },
-              );
-              debug("Copied to clipboard (xsel):", result.issue.id);
-            } catch {
-              debug("Failed to copy to clipboard - xclip/xsel not available");
-            }
+          } else {
+            debug("Failed to copy to clipboard - xclip/xsel not available");
           }
         }
       } else if (keyName === "r") {
@@ -1300,23 +1267,11 @@ async function main() {
           );
           if (file !== null) {
             const relativePath = file.path.replace(currentDir + "/", "");
-            try {
-              execSync(
-                `echo -n "${relativePath}" | xclip -selection clipboard`,
-                { stdio: "ignore" },
-              );
+            const success = copyToClipboard(relativePath);
+            if (success) {
               debug("Copied to clipboard:", relativePath);
-            } catch {
-              // Try xsel as fallback
-              try {
-                execSync(
-                  `echo -n "${relativePath}" | xsel --clipboard --input`,
-                  { stdio: "ignore" },
-                );
-                debug("Copied to clipboard (xsel):", relativePath);
-              } catch {
-                debug("Failed to copy to clipboard - xclip/xsel not available");
-              }
+            } else {
+              debug("Failed to copy to clipboard - xclip/xsel not available");
             }
           }
         }

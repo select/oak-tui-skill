@@ -4,25 +4,17 @@ import { existsSync, unlinkSync } from "fs";
 import { createServer, createConnection, type Socket } from "net";
 import { join } from "path";
 import { homedir } from "os";
+import { debug, setDebugFn } from "./debug-utils";
+import { isRecord } from "./type-guards";
 
 const DATA_DIR = join(homedir(), ".local", "share", "oak-tui");
 const SOCKET_FILE = join(DATA_DIR, "tui.sock");
 
-export function debug(..._args: readonly unknown[]): void {
-  // Will be injected by main app
-}
-
-export function setDebugFn(fn: (...args: readonly unknown[]) => void): void {
-  Object.assign(debug, fn);
-}
+export { debug, setDebugFn };
 
 interface SocketMessage {
   command?: string;
   dir?: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isSocketMessage(value: unknown): value is SocketMessage {

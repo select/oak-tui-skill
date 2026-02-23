@@ -44,7 +44,7 @@ export function createFooter(renderer: CliRenderer): FooterComponents {
     { key: "↹", label: ": cycle " },
     { key: "r", label: ": reload " },
     { key: "d", label: ": remove " },
-    { key: "Ctrl+C", label: ": exit" },
+    { key: "q", label: ": quit" },
   ];
 
   for (let i = 0; i < 4; i++) {
@@ -143,7 +143,7 @@ export function updateFooter(
       { key: "↹", label: ": cycle " },
       { key: "r", label: ": reload " },
       { key: "Esc", label: ": cancel " },
-      { key: "Ctrl+C", label: ": exit" },
+      { key: "q", label: ": quit" },
     ];
   }
   // When filter is applied (has query but not in search mode)
@@ -169,7 +169,7 @@ export function updateFooter(
         { key: "↹", label: ": cycle " },
         { key: "r", label: ": reload " },
         { key: "/", label: ": search " },
-        { key: "Ctrl+C", label: ": exit" },
+        { key: "q", label: ": quit" },
       ];
     }
   }

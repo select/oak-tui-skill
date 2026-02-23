@@ -30,6 +30,7 @@ import { updateFooter } from "./lib/footer";
 import {
   checkExistingInstance,
   createSocketServer,
+  getSocketFile,
 } from "./lib/socket-manager";
 import {
   loadRecentProjects,
@@ -86,6 +87,7 @@ import {
   mkdirSync,
   readFileSync,
   writeFileSync,
+  unlinkSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -823,6 +825,39 @@ async function main() {
         updateContent();
         refreshFooter();
       }
+    } else if (keyName === "q") {
+      // Quit gracefully - don't quit if popup is visible or in search mode
+      if (
+        issuePopupState.visible ||
+        searchMode ||
+        projectsSearchMode ||
+        boardSearchMode
+      ) {
+        return;
+      }
+
+      // Clean up intervals
+      if (boardRefreshInterval) {
+        clearInterval(boardRefreshInterval);
+        boardRefreshInterval = null;
+      }
+      if (projectsRefreshInterval) {
+        clearInterval(projectsRefreshInterval);
+        projectsRefreshInterval = null;
+      }
+
+      // Clean up socket file
+      const socketFile = getSocketFile();
+      try {
+        if (existsSync(socketFile)) {
+          unlinkSync(socketFile);
+        }
+      } catch {
+        // Ignore cleanup errors
+      }
+
+      // Exit cleanly
+      process.exit(0);
     } else if (activeTab === "projects") {
       // Search mode handling
       if (projectsSearchMode) {

@@ -405,13 +405,13 @@ function findBackgroundPaneForWorktree(
   // First try exact match
   const exactMatch = backgroundPanes.get(worktreePath);
   if (exactMatch !== undefined) {
-    return { path: worktreePath, paneId: exactMatch };
+    return { path: worktreePath, paneId: exactMatch.paneId };
   }
 
   // Then try to find any pane in a subdirectory
-  for (const [panePath, paneId] of backgroundPanes.entries()) {
+  for (const [panePath, bgPane] of backgroundPanes.entries()) {
     if (panePath.startsWith(worktreePath + "/")) {
-      return { path: panePath, paneId };
+      return { path: panePath, paneId: bgPane.paneId };
     }
   }
 
@@ -428,23 +428,23 @@ function recoverBackgroundPane(
     return;
   }
 
-  const { path: actualPath, paneId: bgPane } = bgPaneInfo;
+  const { path: actualPath, paneId: bgPaneId } = bgPaneInfo;
   if (actualPath !== worktreePath) {
     debug(
       `Found subdirectory pane at ${actualPath} for worktree ${worktreePath}`,
     );
   }
 
-  if (!bgPane) {
+  if (!bgPaneId) {
     debug("No background pane found for:", worktreePath);
     return;
   }
 
-  debug("Recovering pane:", bgPane.paneId);
+  debug("Recovering pane:", bgPaneId);
 
   try {
     // Check if the background pane still exists
-    if (!paneExists(bgPane.paneId)) {
+    if (!paneExists(bgPaneId)) {
       debug("Background pane no longer exists, removing from tracking");
       backgroundPanes.delete(worktreePath);
       saveBackgroundPanes();
@@ -481,7 +481,7 @@ function recoverBackgroundPane(
       // First, bring the recovered pane back using join-pane
       // This joins the background pane to the left of the oak pane
       execSync(
-        `tmux join-pane -h -b -l ${paneWidth} -t ${oakPane} -s ${bgPane.paneId}`,
+        `tmux join-pane -h -b -l ${paneWidth} -t ${oakPane} -s ${bgPaneId}`,
       );
       execSync("sleep 0.1");
 
@@ -521,7 +521,7 @@ function recoverBackgroundPane(
     } else {
       // No current left pane, just move the background pane to main window
       const oakPane = oakPaneId ?? getTmuxPaneId();
-      execSync(`tmux move-pane -h -b -t ${oakPane} -s ${bgPane.paneId}`);
+      execSync(`tmux move-pane -h -b -t ${oakPane} -s ${bgPaneId}`);
 
       // Remove the recovered pane from tracking
       backgroundPanes.delete(worktreePath);

@@ -7,6 +7,10 @@ description: Manage git worktrees with a TUI. Use this skill when "oak" "worktre
 
 A TUI-based git worktree manager that opens in a tmux pane, showing recent projects and git worktrees for the current directory.
 
+## Configuration
+
+For information on configuring worktree entry commands, see [Installation & Configuration](references/installation.md).
+
 ## Variables
 
 SKILL_DIR: The directory containing this skill

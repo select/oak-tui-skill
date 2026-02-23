@@ -485,6 +485,17 @@ async function main() {
     );
   }
 
+  // Helper to switch to a specific tab
+  function switchToTab(tabId: TabId) {
+    activeTab = tabId;
+    saveUIState({ activeTab });
+    selectedIndex = 0;
+    filesSelectedIndex = 0;
+    updateContent();
+    refreshFooter();
+    renderer.requestRender();
+  }
+
   // Update content function
   function updateContent() {
     // Clear refresh intervals when switching tabs
@@ -773,12 +784,7 @@ async function main() {
       // Number keys: switch to specific tab
       const tabIndex = parseInt(keyName) - 1;
       if (tabIndex >= 0 && tabIndex < TABS.length) {
-        activeTab = TABS[tabIndex].id;
-        saveUIState({ activeTab });
-        selectedIndex = 0;
-        filesSelectedIndex = 0;
-        updateContent();
-        refreshFooter();
+        switchToTab(TABS[tabIndex].id);
       }
     } else if (keyName === "tab" && key.shift) {
       // Shift+Tab: cycle tabs in reverse
@@ -786,22 +792,14 @@ async function main() {
         (t: Readonly<{ id: TabId; label: string }>) => t.id === activeTab,
       );
       const prevIndex = (currentIndex - 1 + TABS.length) % TABS.length;
-      activeTab = TABS[prevIndex].id;
-      saveUIState({ activeTab });
-      selectedIndex = 0;
-      updateContent();
-      refreshFooter();
+      switchToTab(TABS[prevIndex].id);
     } else if (keyName === "tab") {
       // Tab: cycle tabs forward
       const currentIndex = TABS.findIndex(
         (t: Readonly<{ id: TabId; label: string }>) => t.id === activeTab,
       );
       const nextIndex = (currentIndex + 1) % TABS.length;
-      activeTab = TABS[nextIndex].id;
-      saveUIState({ activeTab });
-      selectedIndex = 0; // Reset selection when switching tabs
-      updateContent();
-      refreshFooter();
+      switchToTab(TABS[nextIndex].id);
     } else if (
       ((keyName === "left" && key.ctrl) ||
         (keyName === "h" && key.ctrl) ||
@@ -817,10 +815,7 @@ async function main() {
         (t: Readonly<{ id: TabId; label: string }>) => t.id === activeTab,
       );
       const prevIndex = (currentIndex - 1 + TABS.length) % TABS.length;
-      activeTab = TABS[prevIndex].id;
-      saveUIState({ activeTab });
-      selectedIndex = 0;
-      updateContent();
+      switchToTab(TABS[prevIndex].id);
     } else if (
       ((keyName === "right" && key.ctrl) || (keyName === "l" && key.ctrl)) &&
       !key.shift
@@ -830,10 +825,7 @@ async function main() {
         (t: Readonly<{ id: TabId; label: string }>) => t.id === activeTab,
       );
       const nextIndex = (currentIndex + 1) % TABS.length;
-      activeTab = TABS[nextIndex].id;
-      saveUIState({ activeTab });
-      selectedIndex = 0;
-      updateContent();
+      switchToTab(TABS[nextIndex].id);
     } else if (keyName === "escape") {
       // Close confirm delete popup if open
       if (confirmDeleteState.visible) {

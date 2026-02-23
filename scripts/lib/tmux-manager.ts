@@ -5,6 +5,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { BackgroundPane } from "./types";
+import { getCommandsForWorktree } from "./config-manager";
 
 // Data directory for persistence
 const DATA_DIR = join(homedir(), ".local", "share", "oak-tui");
@@ -200,6 +201,37 @@ export function getAllBackgroundPanes(): Map<string, BackgroundPane> {
 }
 
 /**
+ * Execute commands in a tmux pane
+ */
+function executeCommandsInPane(
+  paneId: string,
+  commands: string[],
+  delay = 100,
+): void {
+  if (commands.length === 0) return;
+
+  debug(`Executing ${commands.length} commands in pane ${paneId}`);
+
+  for (const command of commands) {
+    try {
+      // Send the command to the pane
+      execSync(`tmux send-keys -t ${paneId} ${JSON.stringify(command)} Enter`, {
+        encoding: "utf-8",
+      });
+
+      // Small delay between commands
+      if (delay > 0) {
+        execSync(`sleep ${delay / 1000}`, { encoding: "utf-8" });
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      debug(`Failed to execute command in pane: ${errorMessage}`);
+    }
+  }
+}
+
+/**
  * Switch to a worktree - creates new pane or recovers background pane
  */
 export function switchToWorktree(
@@ -274,6 +306,12 @@ export function switchToWorktree(
     // Small delay to let tmux complete the split
     execSync("sleep 0.1");
 
+    // Execute configured commands in the new pane
+    const commands = getCommandsForWorktree(worktreePath, projectPath);
+    if (commands.length > 0) {
+      executeCommandsInPane(newPaneId, commands);
+    }
+
     debug("Moving old left pane to background session:", leftPaneId);
 
     // Move the OLD left pane to the detached background session
@@ -331,7 +369,10 @@ function ensureBackgroundSession(): void {
 /**
  * Create a new pane at the specified path
  */
-function createPaneAtPath(worktreePath: string, _projectPath: string): void {
+function createPaneAtPath(
+  worktreePath: string,
+  projectPath: string,
+): string | null {
   debug("Creating pane at:", worktreePath);
 
   try {
@@ -341,8 +382,22 @@ function createPaneAtPath(worktreePath: string, _projectPath: string): void {
     execSync(`tmux split-window -h -b -t ${oakPane} -c "${worktreePath}"`);
 
     debug("New pane created at:", worktreePath);
+
+    // Get the pane ID of the newly created pane (left pane)
+    const leftPaneId = getLeftPaneId();
+    if (leftPaneId !== null && leftPaneId !== "") {
+      // Execute configured commands
+      const commands = getCommandsForWorktree(worktreePath, projectPath);
+      if (commands.length > 0) {
+        executeCommandsInPane(leftPaneId, commands);
+      }
+      return leftPaneId;
+    }
+
+    return null;
   } catch (err) {
     debug("Error creating pane:", err);
+    return null;
   }
 }
 

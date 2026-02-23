@@ -932,7 +932,7 @@ async function main() {
         if (keyName === "d") {
           // Confirm deletion
           const projectPath = confirmDeleteState.projectPath;
-          if (projectPath) {
+          if (projectPath !== null && projectPath !== "") {
             const removed = removeRecentProject(projectPath);
             if (removed) {
               debug("Removed project from recent list:", projectPath);
@@ -1020,7 +1020,7 @@ async function main() {
           expandedProjects,
           selectedIndex,
         );
-        if (item && item.type === "project") {
+        if (item?.type === "project") {
           const selectedProject = filteredProjects[item.projectIndex];
           if (!expandedProjects.has(selectedProject.path)) {
             expandedProjects.add(selectedProject.path);

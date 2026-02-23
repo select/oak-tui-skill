@@ -172,8 +172,8 @@ export function saveRecentProject(projectPath: string): void {
     }
 
     // Resolve worktrees to main repo path, or use the original path if not a git repo
-    const mainRepoPath = getMainRepoPath(projectPath) || projectPath;
-    if (!mainRepoPath) {
+    const mainRepoPath = getMainRepoPath(projectPath) ?? projectPath;
+    if (mainRepoPath === null || mainRepoPath === "") {
       debug("Invalid project path:", projectPath);
       return;
     }
@@ -238,7 +238,7 @@ export function deduplicateRecentProjects(): number {
     // Resolve each project to its main repo and keep the most recent
     for (const project of projects) {
       // For git repos, resolve to main repo; for non-git dirs, keep as-is
-      const mainRepoPath = getMainRepoPath(project.path) || project.path;
+      const mainRepoPath = getMainRepoPath(project.path) ?? project.path;
 
       // Skip if path doesn't exist anymore
       if (!existsSync(mainRepoPath)) {

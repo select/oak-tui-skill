@@ -38,7 +38,8 @@ export function renderConfirmDeletePopup(
   theme: Readonly<Theme>,
   renderCounter: number,
 ): void {
-  if (!state.visible || !state.projectPath) return;
+  const hasValidPath = state.projectPath !== null && state.projectPath !== "";
+  if (!state.visible || !hasValidPath) return;
 
   const projectName = basename(state.projectPath);
 

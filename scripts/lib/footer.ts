@@ -125,7 +125,7 @@ export function updateFooter(
   let hints: FooterHint[] = [];
 
   // If confirm delete popup is visible, show delete confirmation hints
-  if (confirmDeleteState?.visible) {
+  if (confirmDeleteState?.visible === true) {
     hints = [
       { key: "d", label: ": delete " },
       { key: "c", label: ": cancel " },

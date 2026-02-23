@@ -700,10 +700,12 @@ export function renderThemes(
   currentThemeName: string,
   renderCounter: number,
   onSelectTheme: (themeName: string) => void,
+  selectedIndex: number,
 ): void {
   for (let i = 0; i < themes.length; i++) {
     const theme = themes[i];
     const isSelected = theme.name === currentThemeName;
+    const isKeyboardSelected = i === selectedIndex;
     const indicator = isSelected ? "●" : "○";
 
     const themeBox = new BoxRenderable(renderer, {
@@ -712,6 +714,7 @@ export function renderThemes(
       flexDirection: "row",
       gap: 2,
       paddingBottom: 1,
+      backgroundColor: isKeyboardSelected ? "#3a3a3a" : undefined,
     });
 
     const themeName = new TextRenderable(renderer, {

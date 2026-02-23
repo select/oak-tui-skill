@@ -306,6 +306,7 @@ async function main() {
   let expandedPaths = new Set<string>();
   let selectedIndex = 0; // Track keyboard selection for projects/board
   let filesSelectedIndex = 0; // Track keyboard selection for files view
+  let themesSelectedIndex = 0; // Track keyboard selection for themes view
   let boardIssues: GroupedIssues = {
     blocked: [],
     ready: [],
@@ -491,6 +492,7 @@ async function main() {
     saveUIState({ activeTab });
     selectedIndex = 0;
     filesSelectedIndex = 0;
+    themesSelectedIndex = 0;
     updateContent();
     refreshFooter();
     renderer.requestRender();
@@ -754,6 +756,7 @@ async function main() {
             updateContent();
           }, 0);
         },
+        themesSelectedIndex,
       );
     }
   }
@@ -1312,6 +1315,31 @@ async function main() {
               }
             }
           }
+        }
+      }
+    } else if (activeTab === "themes") {
+      // Themes navigation with vim keys and arrow keys
+      const totalThemes = availableThemes().length;
+
+      if (keyName === "up" || keyName === "k") {
+        themesSelectedIndex = Math.max(0, themesSelectedIndex - 1);
+        updateContent();
+      } else if (keyName === "down" || keyName === "j") {
+        themesSelectedIndex = Math.min(
+          totalThemes - 1,
+          themesSelectedIndex + 1,
+        );
+        updateContent();
+      } else if (keyName === "space" || keyName === "return") {
+        // Select theme at current index
+        const themes = availableThemes();
+        if (themesSelectedIndex >= 0 && themesSelectedIndex < themes.length) {
+          const selectedTheme = themes[themesSelectedIndex];
+          setTheme(selectedTheme.name);
+          updateUIColors(ui);
+          setTimeout(() => {
+            updateContent();
+          }, 0);
         }
       }
     }

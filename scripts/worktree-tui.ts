@@ -571,6 +571,7 @@ async function main() {
           selectedIndex,
           activeWorktreePath,
           handleWorktreeSwitch,
+          DEBUG,
         );
       }
 
@@ -646,6 +647,7 @@ async function main() {
           }, 0);
         },
         filesSelectedIndex,
+        DEBUG,
       );
     } else if (activeTab === "board") {
       // Show search box when in search mode
@@ -705,6 +707,7 @@ async function main() {
               updateContent();
             }, 0);
           },
+          DEBUG,
         );
       }
 
@@ -737,6 +740,7 @@ async function main() {
               updateContent();
             }, 0);
           },
+          DEBUG,
         );
         renderer.requestRender();
         debug(`Board auto-refreshed (render ${renderCounter})`);

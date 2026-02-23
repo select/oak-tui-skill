@@ -366,6 +366,7 @@ export function renderProjects(
   selectedIndex: number = -1,
   activeWorktreePath?: string,
   onWorktreeSwitch?: (worktreePath: string, projectPath: string) => void,
+  debug: boolean = false,
 ): void {
   // Use activeWorktreePath if provided, otherwise fall back to current working directory
   const currentPath = activeWorktreePath ?? getCurrentWorktreePath();
@@ -423,7 +424,7 @@ export function renderProjects(
 
     const expandIconText = new TextRenderable(renderer, {
       id: `project-expand-${renderCounter}-${i}`,
-      content: `${expandIcon} `,
+      content: `${debug && projectIsSelected ? "→ " : ""}${expandIcon} `,
       fg: "#666666",
     });
 
@@ -512,7 +513,7 @@ export function renderProjects(
 
         const wtName = new TextRenderable(renderer, {
           id: `worktree-name-${renderCounter}-${i}-${wtIdx}`,
-          content: ` ⎇ ${basename(wt.path)}`,
+          content: `${debug && wtIsSelected ? "→ " : ""} ⎇ ${basename(wt.path)}`,
           fg: "#7fd88f",
         });
 
@@ -609,6 +610,7 @@ export function renderFiles(
   renderCounter: number,
   onToggleFolder: (path: string) => void,
   selectedIndex: number = -1,
+  debug: boolean = false,
 ): void {
   const filteredTree = searchQuery
     ? filterFileTree(fileTree, searchQuery)
@@ -664,7 +666,7 @@ export function renderFiles(
 
     const fileName = new TextRenderable(renderer, {
       id: `file-name-${renderCounter}-${i}`,
-      content: `${indent}${icon} ${file.name}`,
+      content: `${debug && isSelected ? "→ " : ""}${indent}${icon} ${file.name}`,
       fg: file.isDirectory ? "#5c9cf5" : "#eeeeee",
     });
 
@@ -765,6 +767,7 @@ export function renderBoard(
   selectedIndex: number,
   onSelectIssue: (issue: Readonly<BeadsIssue>) => void,
   onOpenIssue?: (issue: Readonly<BeadsIssue>) => void,
+  debug: boolean = false,
 ): void {
   let flatIndex = 0;
 
@@ -827,7 +830,7 @@ export function renderBoard(
       // Left side: Type badge (colored dot)
       const typeBadge = new TextRenderable(renderer, {
         id: `board-type-${renderCounter}-${flatIndex}`,
-        content: "●",
+        content: `${debug && isSelected ? "→ " : ""}●`,
         fg: getTypeColor(issue.issue_type),
       });
 

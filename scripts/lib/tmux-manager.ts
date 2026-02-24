@@ -130,25 +130,71 @@ function paneExists(paneId: string): boolean {
 }
 
 /**
- * Check if worktree has a background pane
+ * Check if a pane is in the oak-bg session
+ */
+function paneInBackgroundSession(paneId: string): boolean {
+  try {
+    const output = execSync(
+      `tmux list-panes -t oak-bg -a -F '#{pane_id}' 2>/dev/null`,
+      {
+        encoding: "utf-8",
+      },
+    )
+      .trim()
+      .split("\n");
+    return output.includes(paneId);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if worktree has a background pane (in oak-bg session)
  */
 export function hasBackgroundPane(worktreePath: string): boolean {
   // Exact match
-  if (backgroundPanes.has(worktreePath)) {
-    debug(`hasBackgroundPane: exact match for ${worktreePath}`);
-    return true;
+  const exactMatch = backgroundPanes.get(worktreePath);
+  if (exactMatch !== undefined) {
+    // Verify the pane still exists AND is in oak-bg session
+    if (
+      paneExists(exactMatch.paneId) &&
+      paneInBackgroundSession(exactMatch.paneId)
+    ) {
+      debug(
+        `hasBackgroundPane: exact match for ${worktreePath} (pane ${exactMatch.paneId} in oak-bg)`,
+      );
+      return true;
+    } else {
+      debug(
+        `hasBackgroundPane: stale entry for ${worktreePath} (pane ${exactMatch.paneId} not in oak-bg)`,
+      );
+      // Remove stale entry
+      backgroundPanes.delete(worktreePath);
+      saveBackgroundPanes();
+      return false;
+    }
   }
 
   // Check if any pane is in a subdirectory of this worktree
   const normalizedPath = worktreePath.endsWith("/")
     ? worktreePath
     : worktreePath + "/";
-  for (const [panePath] of backgroundPanes) {
+  for (const [panePath, bgPane] of backgroundPanes) {
     if (panePath.startsWith(normalizedPath)) {
-      debug(
-        `hasBackgroundPane: subdirectory match for ${worktreePath} (found pane at ${panePath})`,
-      );
-      return true;
+      // Verify the pane still exists AND is in oak-bg session
+      if (paneExists(bgPane.paneId) && paneInBackgroundSession(bgPane.paneId)) {
+        debug(
+          `hasBackgroundPane: subdirectory match for ${worktreePath} (found pane ${bgPane.paneId} at ${panePath} in oak-bg)`,
+        );
+        return true;
+      } else {
+        debug(
+          `hasBackgroundPane: stale subdirectory entry for ${worktreePath} (pane ${bgPane.paneId} at ${panePath} not in oak-bg)`,
+        );
+        // Remove stale entry
+        backgroundPanes.delete(panePath);
+        saveBackgroundPanes();
+      }
     }
   }
 

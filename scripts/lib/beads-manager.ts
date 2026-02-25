@@ -104,7 +104,7 @@ export function fetchBeadsIssues(workingDir?: string): BeadsIssue[] {
       return []; // No .beads found
     }
 
-    const output = execSync("bd list --all --json", {
+    const output = execSync("bd list --json", {
       encoding: "utf-8",
       timeout: 5000,
       cwd: beadsDir, // Use directory containing .beads
@@ -164,11 +164,9 @@ export function groupIssuesByStatus(
   for (const issue of issues) {
     if (issue.status === "closed") {
       // Only show issues closed today
-      if (issue.closed_at) {
-        const closedDate = new Date(issue.closed_at).toDateString();
-        if (closedDate === today) {
-          grouped.closed.push(issue);
-        }
+      const closedDate = new Date(issue.updated_at).toDateString();
+      if (closedDate === today) {
+        grouped.closed.push(issue);
       }
     } else if (issue.status === "in_progress") {
       grouped.in_progress.push(issue);

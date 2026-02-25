@@ -13,7 +13,8 @@ export { debug, setDebugFn };
 // Data directory for persistence
 const BG_PANES_FILE = join(DATA_DIR, "background-panes.json");
 
-// Track background panes (worktree path -> BackgroundPane)
+// Track background panes (unique ID -> BackgroundPane)
+// Changed to support multiple panes per worktree
 const backgroundPanes = new Map<string, BackgroundPane>();
 
 // Track the oak TUI pane ID
@@ -150,49 +151,42 @@ function paneInBackgroundSession(paneId: string): boolean {
 
 /**
  * Check if worktree has a background pane (in oak-bg session)
+ * Supports hierarchical matching - checks if pane's worktreePath matches or is a subdirectory
  */
 export function hasBackgroundPane(worktreePath: string): boolean {
-  // Exact match
-  const exactMatch = backgroundPanes.get(worktreePath);
-  if (exactMatch !== undefined) {
-    // Verify the pane still exists AND is in oak-bg session
-    if (
-      paneExists(exactMatch.paneId) &&
-      paneInBackgroundSession(exactMatch.paneId)
-    ) {
-      debug(
-        `hasBackgroundPane: exact match for ${worktreePath} (pane ${exactMatch.paneId} in oak-bg)`,
-      );
-      return true;
-    } else {
-      debug(
-        `hasBackgroundPane: stale entry for ${worktreePath} (pane ${exactMatch.paneId} not in oak-bg)`,
-      );
-      // Remove stale entry
-      backgroundPanes.delete(worktreePath);
-      saveBackgroundPanes();
-      return false;
-    }
-  }
-
-  // Check if any pane is in a subdirectory of this worktree
   const normalizedPath = worktreePath.endsWith("/")
     ? worktreePath
     : worktreePath + "/";
-  for (const [panePath, bgPane] of backgroundPanes) {
-    if (panePath.startsWith(normalizedPath)) {
+
+  for (const [_key, bgPane] of backgroundPanes) {
+    // Check if this pane's worktreePath matches the target worktree
+    // Match if:
+    // 1. Exact match: bgPane.worktreePath === worktreePath
+    // 2. Subdirectory: bgPane.worktreePath starts with worktreePath/
+    const paneNormalizedPath = bgPane.worktreePath.endsWith("/")
+      ? bgPane.worktreePath
+      : bgPane.worktreePath + "/";
+
+    const isMatch =
+      bgPane.worktreePath === worktreePath ||
+      paneNormalizedPath.startsWith(normalizedPath);
+
+    if (isMatch) {
       // Verify the pane still exists AND is in oak-bg session
-      if (paneExists(bgPane.paneId) && paneInBackgroundSession(bgPane.paneId)) {
+      if (
+        paneExists(bgPane.paneId) &&
+        paneInBackgroundSession(bgPane.paneId)
+      ) {
         debug(
-          `hasBackgroundPane: subdirectory match for ${worktreePath} (found pane ${bgPane.paneId} at ${panePath} in oak-bg)`,
+          `hasBackgroundPane: found pane ${bgPane.paneId} for ${worktreePath} (stored at ${bgPane.worktreePath})`,
         );
         return true;
       } else {
         debug(
-          `hasBackgroundPane: stale subdirectory entry for ${worktreePath} (pane ${bgPane.paneId} at ${panePath} not in oak-bg)`,
+          `hasBackgroundPane: stale entry for ${bgPane.worktreePath} (pane ${bgPane.paneId} not in oak-bg)`,
         );
         // Remove stale entry
-        backgroundPanes.delete(panePath);
+        backgroundPanes.delete(_key);
         saveBackgroundPanes();
       }
     }
@@ -222,12 +216,17 @@ export function getCurrentWorktreePath(): string | null {
 }
 
 /**
- * Get background pane for a worktree
+ * Get background pane for a worktree (first match if multiple exist)
  */
 export function getBackgroundPane(
   worktreePath: string,
 ): BackgroundPane | undefined {
-  return backgroundPanes.get(worktreePath);
+  for (const [_key, bgPane] of backgroundPanes) {
+    if (bgPane.worktreePath === worktreePath) {
+      return bgPane;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -360,28 +359,26 @@ export function switchToWorktree(
 
     debug("Tracking background pane");
 
-    // break-pane preserves the pane ID, so use leftPaneId directly
-    // (no need to query oak-bg which could return wrong pane if multiple exist)
-    const bgPaneId = leftPaneId;
+    // The pane ID is preserved after break-pane
+    const newBgPaneId = leftPaneId;
 
     // Restore oak pane width after the switch
     execSync(`tmux resize-pane -t ${oakPane} -x ${oakPaneWidth}`);
     debug("Restored oak pane width to:", oakPaneWidth);
 
     // Track the backgrounded pane by its ORIGINAL cwd (where it came from)
-    // The green dot will appear next to the worktree matching this path
-    // When user clicks on that worktree, we recover this pane
+    // Use paneId as key to support multiple panes per worktree
     const bgPane: BackgroundPane = {
-      paneId: bgPaneId,
+      paneId: newBgPaneId,
       worktreePath: paneCwd,
       projectPath: projectPath,
       createdAt: Date.now(),
     };
 
-    backgroundPanes.set(paneCwd, bgPane);
+    backgroundPanes.set(newBgPaneId, bgPane);
     saveBackgroundPanes();
 
-    debug("Tracking background pane:", bgPaneId, "for path:", paneCwd);
+    debug("Tracking background pane:", newBgPaneId, "for path:", paneCwd);
   } catch (err) {
     debug("Error in switchToWorktree:", err);
     // Don't fallback to cd - it can target the wrong pane (agent pane)
@@ -444,20 +441,30 @@ function createPaneAtPath(
 /**
  * Find a background pane for the given worktree path.
  * Supports hierarchical matching - if no exact match, finds panes in subdirectories.
+ * Returns the first match if multiple exist.
  */
 function findBackgroundPaneForWorktree(
   worktreePath: string,
-): { path: string; paneId: string } | undefined {
+): { paneId: string } | undefined {
+  const normalizedPath = worktreePath.endsWith("/")
+    ? worktreePath
+    : worktreePath + "/";
+
   // First try exact match
-  const exactMatch = backgroundPanes.get(worktreePath);
-  if (exactMatch !== undefined) {
-    return { path: worktreePath, paneId: exactMatch.paneId };
+  for (const [_key, bgPane] of backgroundPanes) {
+    if (bgPane.worktreePath === worktreePath) {
+      return { paneId: bgPane.paneId };
+    }
   }
 
   // Then try to find any pane in a subdirectory
-  for (const [panePath, bgPane] of backgroundPanes.entries()) {
-    if (panePath.startsWith(worktreePath + "/")) {
-      return { path: panePath, paneId: bgPane.paneId };
+  for (const [_key, bgPane] of backgroundPanes) {
+    const paneNormalizedPath = bgPane.worktreePath.endsWith("/")
+      ? bgPane.worktreePath
+      : bgPane.worktreePath + "/";
+
+    if (paneNormalizedPath.startsWith(normalizedPath)) {
+      return { paneId: bgPane.paneId };
     }
   }
 
@@ -474,17 +481,7 @@ function recoverBackgroundPane(
     return;
   }
 
-  const { path: actualPath, paneId: bgPaneId } = bgPaneInfo;
-  if (actualPath !== worktreePath) {
-    debug(
-      `Found subdirectory pane at ${actualPath} for worktree ${worktreePath}`,
-    );
-  }
-
-  if (!bgPaneId) {
-    debug("No background pane found for:", worktreePath);
-    return;
-  }
+  const { paneId: bgPaneId } = bgPaneInfo;
 
   debug("Recovering pane:", bgPaneId);
 
@@ -492,7 +489,7 @@ function recoverBackgroundPane(
     // Check if the background pane still exists
     if (!paneExists(bgPaneId)) {
       debug("Background pane no longer exists, removing from tracking");
-      backgroundPanes.delete(worktreePath);
+      backgroundPanes.delete(bgPaneId);
       saveBackgroundPanes();
       return;
     }
@@ -550,17 +547,17 @@ function recoverBackgroundPane(
       debug("Recovered pane moved to main window");
 
       // Remove the recovered pane from tracking FIRST
-      // (before adding new one, in case paths are the same)
-      backgroundPanes.delete(worktreePath);
+      backgroundPanes.delete(bgPaneId);
 
       // Track the newly backgrounded pane
+      // Use paneId as key to support multiple panes per worktree
       const newBgPane: BackgroundPane = {
         paneId: newBgPaneId,
         worktreePath: paneCwd,
         projectPath: paneCwd,
         createdAt: Date.now(),
       };
-      backgroundPanes.set(paneCwd, newBgPane);
+      backgroundPanes.set(newBgPaneId, newBgPane);
 
       debug("Tracking new background pane:", newBgPaneId, "for path:", paneCwd);
       saveBackgroundPanes();
@@ -570,7 +567,7 @@ function recoverBackgroundPane(
       execSync(`tmux move-pane -h -b -t ${oakPane} -s ${bgPaneId}`);
 
       // Remove the recovered pane from tracking
-      backgroundPanes.delete(worktreePath);
+      backgroundPanes.delete(bgPaneId);
       saveBackgroundPanes();
     }
 
@@ -578,7 +575,7 @@ function recoverBackgroundPane(
   } catch (err) {
     debug("Error recovering pane:", err);
     // Clean up invalid entry
-    backgroundPanes.delete(worktreePath);
+    backgroundPanes.delete(bgPaneId);
     saveBackgroundPanes();
   }
 }
@@ -675,7 +672,10 @@ function discoverOrphanedPanes(): void {
 
     for (const pane of panes) {
       // Skip if already tracked
-      if (backgroundPanes.has(pane.path)) {
+      const isTracked = Array.from(backgroundPanes.values()).some(
+        (bgPane) => bgPane.paneId === pane.paneId,
+      );
+      if (isTracked) {
         debug(`Pane ${pane.paneId} at ${pane.path} is already tracked`);
         continue;
       }
@@ -694,7 +694,7 @@ function discoverOrphanedPanes(): void {
         debug(`Pane ${pane.paneId} at ${pane.path} is not in a git repo`);
       }
 
-      // Add to tracking
+      // Add to tracking - use paneId as key
       const bgPane: BackgroundPane = {
         paneId: pane.paneId,
         worktreePath: pane.path,
@@ -702,7 +702,7 @@ function discoverOrphanedPanes(): void {
         createdAt: Date.now(),
       };
 
-      backgroundPanes.set(pane.path, bgPane);
+      backgroundPanes.set(pane.paneId, bgPane);
       discoveredCount++;
       debug(`Discovered orphaned pane: ${pane.paneId} at ${pane.path}`);
     }
@@ -725,15 +725,15 @@ function cleanupStalePanes(): void {
   debug("Cleaning up stale panes");
   const toRemove: string[] = [];
 
-  for (const [path, bgPane] of backgroundPanes) {
+  for (const [paneId, bgPane] of backgroundPanes) {
     if (!paneExists(bgPane.paneId)) {
-      debug("Removing stale pane:", path, bgPane.paneId);
-      toRemove.push(path);
+      debug("Removing stale pane:", paneId, bgPane.worktreePath);
+      toRemove.push(paneId);
     }
   }
 
-  for (const path of toRemove) {
-    backgroundPanes.delete(path);
+  for (const paneId of toRemove) {
+    backgroundPanes.delete(paneId);
   }
 
   if (toRemove.length > 0) {

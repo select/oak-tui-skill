@@ -269,7 +269,6 @@ export function deduplicateRecentProjects(): number {
 
 /**
  * Build hierarchical project nodes from recent projects
- * Preserves the order from recentProjects (sorted by lastAccessed)
  */
 export function buildProjectNodes(
   recentProjects: readonly Readonly<RecentProject>[],
@@ -277,12 +276,7 @@ export function buildProjectNodes(
 ): ProjectNode[] {
   const nodes: ProjectNode[] = [];
 
-  // Sort projects by lastAccessed descending (most recent first) for stable order
-  const sortedProjects = [...recentProjects].sort(
-    (a, b) => b.lastAccessed - a.lastAccessed,
-  );
-
-  for (const project of sortedProjects) {
+  for (const project of recentProjects) {
     const worktrees = getWorktrees(project.path);
     const isActive = project.path === currentGitRoot;
 

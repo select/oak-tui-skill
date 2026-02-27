@@ -1048,47 +1048,35 @@ async function main() {
           }
         }
       } else if (keyName === "return") {
-        // Check for Ctrl+Enter first
-        if (key.ctrl) {
-          // Ctrl+Enter: Create new pane for worktree
-          const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
-          debug(`Ctrl+Enter pressed, item type: ${item?.type}`);
-          if (item?.type === "worktree" && item.worktreePath != null && item.worktreePath !== "") {
-            debug(`Creating new pane for worktree: ${item.worktreePath}`);
-            createNewPaneForWorktree(item.worktreePath, oakPaneId);
-            updateContent();
-          }
-        } else {
-          // Plain Enter: expand/collapse or bring pane to front
-          const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
-          if (item) {
-            if (item.type === "project") {
-              // Toggle project expansion
-              if (expandedProjects.has(item.projectPath)) {
-                expandedProjects.delete(item.projectPath);
-              } else {
-                expandedProjects.add(item.projectPath);
-              }
-              updateContent();
-            } else if (item.type === "worktree" && item.worktreePath != null && item.worktreePath !== "") {
-              // Worktree: only toggle expand/collapse (use ctrl+enter to create pane)
-              if (expandedWorktrees.has(item.worktreePath)) {
-                expandedWorktrees.delete(item.worktreePath);
-              } else {
-                expandedWorktrees.add(item.worktreePath);
-              }
-              updateContent();
-            } else if (item.type === "pane" && item.paneId != null && item.paneId !== "") {
-              // Pane: bring to foreground only if background
-              if (item.projectPath in state.projects && item.worktreePath != null && item.worktreePath !== "" && item.worktreePath in state.projects[item.projectPath].worktrees) {
-                const pane = state.projects[item.projectPath].worktrees[item.worktreePath].panes.find((p) => p.paneId === item.paneId);
-                if (pane?.isBackground === true) {
-                  bringPaneToForeground(item.paneId, oakPaneId);
-                  updateContent();
-                }
-              }
-              // Do nothing if pane is already in front
+        // Enter: expand/collapse or bring pane to front
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        if (item) {
+          if (item.type === "project") {
+            // Toggle project expansion
+            if (expandedProjects.has(item.projectPath)) {
+              expandedProjects.delete(item.projectPath);
+            } else {
+              expandedProjects.add(item.projectPath);
             }
+            updateContent();
+          } else if (item.type === "worktree" && item.worktreePath != null && item.worktreePath !== "") {
+            // Worktree: only toggle expand/collapse (use 'n' to create pane)
+            if (expandedWorktrees.has(item.worktreePath)) {
+              expandedWorktrees.delete(item.worktreePath);
+            } else {
+              expandedWorktrees.add(item.worktreePath);
+            }
+            updateContent();
+          } else if (item.type === "pane" && item.paneId != null && item.paneId !== "") {
+            // Pane: bring to foreground only if background
+            if (item.projectPath in state.projects && item.worktreePath != null && item.worktreePath !== "" && item.worktreePath in state.projects[item.projectPath].worktrees) {
+              const pane = state.projects[item.projectPath].worktrees[item.worktreePath].panes.find((p) => p.paneId === item.paneId);
+              if (pane?.isBackground === true) {
+                bringPaneToForeground(item.paneId, oakPaneId);
+                updateContent();
+              }
+            }
+            // Do nothing if pane is already in front
           }
         }
       } else if (keyName === "space") {
@@ -1118,6 +1106,15 @@ async function main() {
               }
             }
           }
+        }
+      } else if (keyName === "n") {
+        // n: Create new pane for worktree
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        debug(`n key pressed, item type: ${item?.type}`);
+        if (item?.type === "worktree" && item.worktreePath != null && item.worktreePath !== "") {
+          debug(`Creating new pane for worktree: ${item.worktreePath}`);
+          createNewPaneForWorktree(item.worktreePath, oakPaneId);
+          updateContent();
         }
       } else if (keyName === "d") {
         // Show confirmation popup for deleting project from recent list

@@ -1668,6 +1668,9 @@ export function addPaneToMultiView(
         const masterWidth = Math.floor(workspace.width / 2);
         const stackWidth = workspace.width - masterWidth;
         
+        debug(`Workspace dimensions: width=${workspace.width}, height=${workspace.height}, oakWidth=${workspace.oakWidth}`);
+        debug(`Master layout: masterWidth=${masterWidth}, stackWidth=${stackWidth}`);
+        
         // Determine which panes will be in the stack
         // Master is leftmost, rest go to stack
         const sortedPanes = visiblePanes.sort((a, b) => a.left - b.left);
@@ -1680,29 +1683,34 @@ export function addPaneToMultiView(
         execSync(`tmux join-pane -h -b -t ${oakPaneId} -s ${paneId}`);
         execSync("sleep 0.1");
         
+        debug(`After join, pane layout: ${execSync("tmux list-panes -F '#{pane_id}:#{pane_width}x#{pane_height}@#{pane_left}'", { encoding: "utf-8" }).trim()}`);
+        
         // Apply master layout
         if (masterPane !== undefined) {
-          // Resize master to 50% width
-          execSync(`tmux resize-pane -t ${masterPane.id} -x ${masterWidth}`);
-          
           // Stack all other panes vertically on the right
           const totalStackPanes = stackPanes.length + 1; // Including new pane
           const stackPaneHeight = Math.floor(workspace.height / totalStackPanes);
           
-          // Split the new pane vertically to create stack
+          // Step 1: Resize the newly added pane to correct width FIRST
+          // This establishes the width for the entire vertical stack
+          execSync(`tmux resize-pane -t ${paneId} -x ${stackWidth}`);
+          execSync("sleep 0.05");
+          
+          // Step 2: Move other panes vertically onto the new pane to create stack
           for (let i = 0; i < stackPanes.length; i++) {
             const stackPane = stackPanes[i];
             if (stackPane !== undefined) {
-              // Move stack pane to be vertically stacked
               execSync(`tmux move-pane -v -t ${paneId} -s ${stackPane.id}`);
               execSync("sleep 0.05");
               execSync(`tmux resize-pane -t ${stackPane.id} -y ${stackPaneHeight}`);
             }
           }
           
-          // Resize the newly added pane
-          execSync(`tmux resize-pane -t ${paneId} -x ${stackWidth}`);
+          // Step 3: Resize the newly added pane height
           execSync(`tmux resize-pane -t ${paneId} -y ${stackPaneHeight}`);
+          
+          // Step 4: Resize master to 50% width (AFTER stack is created)
+          execSync(`tmux resize-pane -t ${masterPane.id} -x ${masterWidth}`);
         }
       }
       

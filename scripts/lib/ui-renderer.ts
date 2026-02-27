@@ -892,15 +892,15 @@ export function renderProjectsFromState(
         wtHeaderBox.onMouseOver = wtHoverHandlers.onMouseOver;
         wtHeaderBox.onMouseOut = wtHoverHandlers.onMouseOut;
 
-        // Indicator: purple for current, orange for background panes
+        // Indicator: filled circle for current worktree, hollow for background panes
         let indicator = "";
         let indicatorColor = "";
         if (isCurrentWorktree) {
-          indicator = " \u25CF"; // Big filled circle
+          indicator = " ●"; // Filled circle
           indicatorColor = "#a855f7"; // Purple
         } else if (hasBgPanes) {
-          indicator = " \u2022"; // Small bullet
-          indicatorColor = "#f97316"; // Orange
+          indicator = " ○"; // Hollow circle
+          indicatorColor = "#a855f7"; // Purple (same color for consistency)
         }
 
         const wtNameRow = new BoxRenderable(renderer, {

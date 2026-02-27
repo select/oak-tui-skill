@@ -617,6 +617,7 @@ export interface StateProjectItem {
   projectPath: string;
   worktreePath?: string;
   paneId?: string;
+  isBackground?: boolean; // For panes: whether the pane is in background session
 }
 
 /**
@@ -695,6 +696,7 @@ export function getStateItemAtIndex(
                 projectPath: project.path,
                 worktreePath: wt.path,
                 paneId: pane.paneId,
+                isBackground: pane.isBackground,
               };
             }
             currentIndex++;

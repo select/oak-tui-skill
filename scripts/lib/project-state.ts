@@ -1558,3 +1558,129 @@ export function sendPaneToBackground(paneId: string): { success: boolean } {
   }
 }
 
+/**
+ * Add a pane to multi-view or remove it (toggle between foreground and background)
+ * 
+ * If pane is background: add to foreground with smart layout
+ * - 2 panes: 50/50 horizontal split (minus Oak 30%)
+ * - 3+ panes: Master layout 50% left, 50% right with vertical stack
+ * - Stack height divides evenly: height / num_panes_in_stack
+ * 
+ * If pane is foreground: send to background
+ * 
+ * @param paneId - The pane to add/remove
+ * @param isBackground - Whether the pane is currently in background
+ * @param oakPaneId - The Oak TUI pane ID
+ * @returns Success status and any additional info
+ */
+export function addPaneToMultiView(
+  paneId: string,
+  isBackground: boolean,
+  oakPaneId: string
+): { success: boolean; action?: "added" | "removed" } {
+  debug(`addPaneToMultiView: paneId=${paneId}, isBackground=${isBackground}`);
+
+  try {
+    if (isBackground) {
+      // Add to foreground: bring pane from background and apply smart layout
+      const visiblePanes = getVisibleForegroundPanes(oakPaneId);
+      const newPaneCount = visiblePanes.length + 1; // Including the new pane
+      const workspace = getWorkspaceDimensions(oakPaneId);
+
+      debug(`Current visible panes: ${visiblePanes.length}, new count will be: ${newPaneCount}`);
+
+      // First, join the pane to foreground
+      ensureBackgroundSession();
+      
+      if (newPaneCount === 1) {
+        // First pane - just join it as full workspace
+        execSync(`tmux join-pane -h -b -t ${oakPaneId} -s ${paneId}`);
+        execSync("sleep 0.1");
+      } else if (newPaneCount === 2) {
+        // Second pane - create 50/50 split
+        const halfWidth = Math.floor(workspace.width / 2);
+        
+        // Join the new pane to the left of Oak
+        execSync(`tmux join-pane -h -b -t ${oakPaneId} -s ${paneId}`);
+        execSync("sleep 0.1");
+        
+        // Resize both panes to 50% each
+        const sortedPanes = visiblePanes.sort((a, b) => a.left - b.left);
+        const leftPane = sortedPanes[0];
+        
+        if (leftPane !== undefined) {
+          execSync(`tmux resize-pane -t ${leftPane.id} -x ${halfWidth}`);
+          execSync(`tmux resize-pane -t ${paneId} -x ${halfWidth}`);
+        }
+      } else {
+        // 3+ panes - master layout (50% left, 50% right with vertical stack)
+        const masterWidth = Math.floor(workspace.width / 2);
+        const stackWidth = workspace.width - masterWidth;
+        
+        // Determine which panes will be in the stack
+        // Master is leftmost, rest go to stack
+        const sortedPanes = visiblePanes.sort((a, b) => a.left - b.left);
+        const masterPane = sortedPanes[0];
+        const stackPanes = sortedPanes.slice(1);
+        
+        debug(`Master pane: ${masterPane?.id}, stack panes: ${stackPanes.map(p => p.id).join(", ")}`);
+        
+        // Join the new pane to foreground (will be added to stack)
+        execSync(`tmux join-pane -h -b -t ${oakPaneId} -s ${paneId}`);
+        execSync("sleep 0.1");
+        
+        // Apply master layout
+        if (masterPane !== undefined) {
+          // Resize master to 50% width
+          execSync(`tmux resize-pane -t ${masterPane.id} -x ${masterWidth}`);
+          
+          // Stack all other panes vertically on the right
+          const totalStackPanes = stackPanes.length + 1; // Including new pane
+          const stackPaneHeight = Math.floor(workspace.height / totalStackPanes);
+          
+          // Split the new pane vertically to create stack
+          for (let i = 0; i < stackPanes.length; i++) {
+            const stackPane = stackPanes[i];
+            if (stackPane !== undefined) {
+              // Move stack pane to be vertically stacked
+              execSync(`tmux move-pane -v -t ${paneId} -s ${stackPane.id}`);
+              execSync("sleep 0.05");
+              execSync(`tmux resize-pane -t ${stackPane.id} -y ${stackPaneHeight}`);
+            }
+          }
+          
+          // Resize the newly added pane
+          execSync(`tmux resize-pane -t ${paneId} -x ${stackWidth}`);
+          execSync(`tmux resize-pane -t ${paneId} -y ${stackPaneHeight}`);
+        }
+      }
+      
+      // Restore Oak pane width
+      execSync(`tmux resize-pane -t ${oakPaneId} -x ${workspace.oakWidth}`);
+      
+      // Update state
+      const state = getGlobalState();
+      const currentSession = getCurrentTmuxSession();
+      if (currentSession != null && currentSession !== "") {
+        markPaneAsForeground(state, paneId, currentSession);
+        saveGlobalState();
+      }
+      
+      debug(`Added pane ${paneId} to multi-view`);
+      return { success: true, action: "added" };
+      
+    } else {
+      // Remove from foreground: send to background
+      const result = sendPaneToBackground(paneId);
+      if (result.success) {
+        debug(`Removed pane ${paneId} from multi-view`);
+        return { success: true, action: "removed" };
+      }
+      return { success: false };
+    }
+  } catch (err) {
+    debug("Error in addPaneToMultiView:", err);
+    return { success: false };
+  }
+}
+

@@ -101,6 +101,7 @@ import {
   createNewPaneForWorktree,
   getLeftPaneId,
   getWorktreesWithBackgroundPanes,
+  addPaneToMultiView,
 } from "./lib/project-state";
 import {
   existsSync,
@@ -463,6 +464,7 @@ async function main() {
   function refreshFooter() {
     // Determine selected item type for context-sensitive hints
     let selectedItemType: "project" | "worktree" | "pane" | null = null;
+    let selectedItemIsBackground: boolean | undefined = undefined;
     if (activeTab === "projects") {
       const state = getGlobalState();
       const leftPane = getLeftPane();
@@ -470,6 +472,7 @@ async function main() {
       debug(`refreshFooter: selectedIndex=${selectedIndex}, item=${JSON.stringify(item)}`);
       if (item != null) {
         selectedItemType = item.type;
+        selectedItemIsBackground = item.isBackground;
       }
     }
 
@@ -486,6 +489,7 @@ async function main() {
       },
       confirmDeleteState,
       selectedItemType,
+      selectedItemIsBackground,
     );
   }
 
@@ -1115,6 +1119,20 @@ async function main() {
           debug(`Creating new pane for worktree: ${item.worktreePath}`);
           createNewPaneForWorktree(item.worktreePath, oakPaneId);
           updateContent();
+        }
+      } else if (keyName === "a") {
+        // a: Add/remove pane to/from multi-view
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        debug(`a key pressed, item type: ${item?.type}`);
+        if (item?.type === "pane" && item.paneId != null && item.paneId !== "") {
+          if (item.projectPath in state.projects && item.worktreePath != null && item.worktreePath !== "" && item.worktreePath in state.projects[item.projectPath].worktrees) {
+            const pane = state.projects[item.projectPath].worktrees[item.worktreePath].panes.find((p) => p.paneId === item.paneId);
+            if (pane !== undefined) {
+              debug(`Toggle pane ${item.paneId} multi-view: isBackground=${pane.isBackground}`);
+              addPaneToMultiView(item.paneId, pane.isBackground, oakPaneId);
+              updateContent();
+            }
+          }
         }
       } else if (keyName === "d") {
         // Show confirmation popup for deleting project from recent list

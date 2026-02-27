@@ -122,6 +122,7 @@ export function updateFooter(
   },
   confirmDeleteState?: ConfirmDeleteState,
   selectedItemType?: "project" | "worktree" | "pane" | null,
+  selectedItemIsBackground?: boolean,
 ): void {
   let hints: FooterHint[] = [];
 
@@ -185,6 +186,12 @@ export function updateFooter(
         } else if (selectedItemType === "worktree") {
           hints.push({ key: "n", label: ": new pane" });
         } else if (selectedItemType === "pane") {
+          // Show context-aware hint based on whether pane is background or foreground
+          if (selectedItemIsBackground === true) {
+            hints.push({ key: "a", label: ": add to view" });
+          } else {
+            hints.push({ key: "a", label: ": send to bg" });
+          }
           hints.push({ key: "↵", label: ": focus" });
         }
       } else {

@@ -54,6 +54,7 @@ A terminal UI for managing git worktrees, built with [Bun](https://bun.sh) and [
 | `Enter` | Expand/collapse or focus pane | All tabs |
 | `n` | New pane for worktree | Projects only |
 | `d` | Remove project | Projects only |
+| `y` | Yank (copy to clipboard) | Board (issue ID), Files (file path) |
 | `/` | Search | Projects, Board, Files |
 | `Tab` | Cycle tabs (alternative) | All tabs |
 | `q` | Quit | All tabs |

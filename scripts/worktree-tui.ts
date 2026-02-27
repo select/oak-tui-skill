@@ -106,6 +106,7 @@ import {
   sendPaneToBackground,
   relayoutForegroundPanes,
   getWorkspaceDimensions,
+  loadOakConfig,
 } from "./lib/project-state";
 import {
   existsSync,
@@ -338,6 +339,17 @@ async function main() {
   // Get oak pane ID for tmux operations
   const oakPaneId = getTmuxPaneId() ?? "";
   debug("Oak pane ID:", oakPaneId);
+
+  // Initialize Oak width from config
+  if (oakPaneId !== "") {
+    const config = loadOakConfig();
+    try {
+      execSync(`tmux resize-pane -t ${oakPaneId} -x ${config.oakWidth}`);
+      debug(`Initialized Oak width to ${config.oakWidth} columns`);
+    } catch (err) {
+      debug("Error setting initial Oak width:", err);
+    }
+  }
 
   // Helper to get the current left pane ID
   const getLeftPane = () => getLeftPaneId(oakPaneId);

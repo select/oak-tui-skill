@@ -210,6 +210,100 @@ export function saveProjectsState(state: OakProjectsState): void {
 }
 
 // ============================================================================
+// Oak Configuration
+// ============================================================================
+
+/**
+ * Oak TUI configuration
+ */
+export interface OakConfig {
+  oakWidth: number; // Width of Oak pane in columns (20-40% of window)
+}
+
+/**
+ * Default Oak width as percentage of window width
+ */
+const DEFAULT_OAK_WIDTH_PERCENT = 0.25; // 25% of window width
+const MIN_OAK_WIDTH = 42; // Minimum width in columns
+const MAX_OAK_WIDTH_PERCENT = 0.4; // Maximum 40% of window width
+
+/**
+ * Create default config
+ */
+function createDefaultConfig(): OakConfig {
+  try {
+    const windowWidth = parseInt(
+      execSync("tmux display-message -p '#{window_width}'", {
+        encoding: "utf-8",
+      }).trim()
+    );
+    const oakWidth = Math.max(
+      MIN_OAK_WIDTH,
+      Math.min(
+        Math.floor(windowWidth * DEFAULT_OAK_WIDTH_PERCENT),
+        Math.floor(windowWidth * MAX_OAK_WIDTH_PERCENT)
+      )
+    );
+    return { oakWidth };
+  } catch {
+    return { oakWidth: 53 }; // Fallback default
+  }
+}
+
+/**
+ * Load Oak config from YAML file
+ */
+export function loadOakConfig(): OakConfig {
+  try {
+    if (!existsSync(CONFIG_FILE)) {
+      debug("No config file found, creating default");
+      const config = createDefaultConfig();
+      saveOakConfig(config);
+      return config;
+    }
+
+    const fileContents = readFileSync(CONFIG_FILE, "utf-8");
+    const parsed = yaml.load(fileContents);
+
+    if (!isNonNullObject(parsed) || typeof parsed.oakWidth !== "number") {
+      debug("Invalid config format, creating default");
+      const config = createDefaultConfig();
+      saveOakConfig(config);
+      return config;
+    }
+
+    debug(`Loaded config: oakWidth=${parsed.oakWidth}`);
+    return { oakWidth: parsed.oakWidth };
+  } catch (err) {
+    debug("Error loading config:", err);
+    return createDefaultConfig();
+  }
+}
+
+/**
+ * Save Oak config to YAML file
+ */
+export function saveOakConfig(config: OakConfig): void {
+  try {
+    if (!existsSync(CONFIG_DIR)) {
+      mkdirSync(CONFIG_DIR, { recursive: true });
+    }
+
+    const yamlContent = yaml.dump(config, {
+      indent: 2,
+      lineWidth: 120,
+      noRefs: true,
+      sortKeys: false,
+    });
+
+    writeFileSync(CONFIG_FILE, yamlContent);
+    debug(`Saved config: oakWidth=${config.oakWidth}`);
+  } catch (err) {
+    debug("Error saving config:", err);
+  }
+}
+
+// ============================================================================
 // Beads Detection
 // ============================================================================
 
@@ -1454,7 +1548,7 @@ export function getVisibleForegroundPanes(oakPaneId: string): VisiblePaneInfo[] 
 /**
  * Get workspace dimensions (excluding Oak pane)
  */
-export function getWorkspaceDimensions(oakPaneId: string): {
+export function getWorkspaceDimensions(_oakPaneId: string): {
   width: number;
   height: number;
   oakWidth: number;
@@ -1470,11 +1564,10 @@ export function getWorkspaceDimensions(oakPaneId: string): {
         encoding: "utf-8",
       }).trim()
     );
-    const oakWidth = parseInt(
-      execSync(`tmux display-message -p -t ${oakPaneId} '#{pane_width}'`, {
-        encoding: "utf-8",
-      }).trim()
-    );
+    
+    // Use configured Oak width instead of current pane width
+    const config = loadOakConfig();
+    const oakWidth = config.oakWidth;
 
     return {
       width: windowWidth - oakWidth,
@@ -1484,7 +1577,7 @@ export function getWorkspaceDimensions(oakPaneId: string): {
   } catch (err) {
     debug("Error getting workspace dimensions:", err);
     // Return reasonable defaults
-    return { width: 100, height: 40, oakWidth: 30 };
+    return { width: 100, height: 40, oakWidth: 53 };
   }
 }
 

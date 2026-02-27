@@ -835,10 +835,13 @@ export function renderProjectsFromState(
 
         const wtIsExpanded = expandedWorktrees.has(wt.path);
 
-        // Calculate visible panes (background + active foreground only)
+        // Calculate visible panes to display in the list:
+        // - All background panes (orange ◌)
+        // - All foreground panes (purple ●) when in multi-view
         const visiblePanes = wt.panes.filter((p) => {
           if (p.isBackground) return true;
-          return p.paneId === leftPaneId;
+          // Show all foreground panes (not just the active one)
+          return !p.isBackground;
         });
 
         // Count foreground panes for multi-view indicator

@@ -1011,6 +1011,13 @@ async function main() {
             }
           }
         }
+      } else if (keyName === "return" && key.ctrl) {
+        // Ctrl+Enter: Create new pane for worktree
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        if (item?.type === "worktree" && item.worktreePath) {
+          createNewPaneForWorktree(item.worktreePath, oakPaneId);
+          updateContent();
+        }
       } else if (keyName === "space" || keyName === "return") {
         // Select/activate the current item
         const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);

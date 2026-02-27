@@ -179,7 +179,7 @@ export function updateFooter(
       if (activeTab === "projects") {
         hints = [
           { key: "↹", label: ": cycle " },
-          { key: "r", label: ": reload " },
+          { key: "^↵", label: ": new pane " },
           { key: "d", label: ": remove " },
           { key: "/", label: ": search" },
         ];

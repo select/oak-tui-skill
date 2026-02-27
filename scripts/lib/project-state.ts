@@ -382,9 +382,13 @@ export interface TmuxPaneInfo {
  */
 export function getTmuxPanesInSession(sessionName: string): TmuxPaneInfo[] {
   try {
+    // First check if session exists
+    execSync(`tmux has-session -t ${sessionName}`, { encoding: "utf-8", stdio: "pipe" });
+    
+    // Use -s flag to list all panes in the session (not -a which lists all sessions)
     const output = execSync(
-      `tmux list-panes -t ${sessionName} -a -F '#{pane_id}|#{window_id}|#{session_name}|#{pane_current_path}'`,
-      { encoding: "utf-8" }
+      `tmux list-panes -s -t ${sessionName} -F '#{pane_id}|#{window_id}|#{session_name}|#{pane_current_path}'`,
+      { encoding: "utf-8", stdio: "pipe" }
     ).trim();
 
     if (!output) return [];

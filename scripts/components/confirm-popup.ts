@@ -1,5 +1,7 @@
 import { BoxRenderable, TextRenderable, type CliRenderer } from "@opentui/core";
 import type { Theme } from "../lib/types";
+import type { ModalComponents } from "./modal";
+import { clearModalContent, showModal, hideModal } from "./modal";
 import { basename } from "node:path";
 
 export interface ConfirmDeleteState {
@@ -28,36 +30,52 @@ export function hideConfirmDelete(state: ConfirmDeleteState): void {
 }
 
 /**
- * Renders a centered confirmation popup for project deletion.
+ * Renders a centered confirmation popup for project deletion using the modal system.
  * Shows the project path and [d]elete / [c]ancel buttons.
+ *
+ * @param renderer - The CLI renderer
+ * @param modal - Modal components from the UI system
+ * @param state - Confirm delete state
+ * @param theme - Current theme
+ * @param renderCounter - Unique render counter for IDs
+ * @param onClose - Callback when modal is closed (cancel action)
  */
 export function renderConfirmDeletePopup(
   renderer: Readonly<CliRenderer>,
-  parent: Readonly<BoxRenderable>,
+  modal: ModalComponents,
   state: Readonly<ConfirmDeleteState>,
   theme: Readonly<Theme>,
   renderCounter: number,
+  onClose?: () => void,
 ): void {
   const hasValidPath = state.projectPath !== null && state.projectPath !== "";
-  if (!state.visible || !hasValidPath) return;
+  if (!state.visible || !hasValidPath) {
+    hideModal(modal);
+    return;
+  }
 
   const projectName = basename(state.projectPath);
 
-  // Popup container - centered
-  const popup = new BoxRenderable(renderer, {
-    id: `confirm-popup-${renderCounter}`,
-    width: 60,
-    backgroundColor: theme.colors.backgroundPanel,
-    borderColor: theme.colors.error,
-    borderStyle: "single",
-    paddingTop: 1,
-    paddingBottom: 1,
-    paddingLeft: 2,
-    paddingRight: 2,
-    flexDirection: "column",
-    gap: 1,
-  });
-  parent.add(popup);
+  // Clear previous modal content
+  clearModalContent(modal);
+
+  // Configure modal container styling
+  modal.container.width = 60;
+  modal.container.borderColor = theme.colors.error;
+  modal.container.paddingTop = 1;
+  modal.container.paddingBottom = 1;
+  modal.container.paddingLeft = 2;
+  modal.container.paddingRight = 2;
+
+  // Set up click-outside-to-close behavior
+  modal.overlay.onMouseDown = (e) => {
+    e.stopPropagation();
+    if (onClose) {
+      setTimeout(() => { onClose(); }, 0);
+    }
+  };
+
+  const container = modal.container;
 
   // Title
   const title = new TextRenderable(renderer, {
@@ -65,7 +83,7 @@ export function renderConfirmDeletePopup(
     content: "Delete Project?",
     fg: theme.colors.error,
   });
-  popup.add(title);
+  container.add(title);
 
   // Separator
   const sep1 = new TextRenderable(renderer, {
@@ -73,7 +91,7 @@ export function renderConfirmDeletePopup(
     content: "─".repeat(56),
     fg: theme.colors.border,
   });
-  popup.add(sep1);
+  container.add(sep1);
 
   // Warning message
   const warningText = new TextRenderable(renderer, {
@@ -81,7 +99,7 @@ export function renderConfirmDeletePopup(
     content: "This will remove the project from your recent list.",
     fg: theme.colors.textMuted,
   });
-  popup.add(warningText);
+  container.add(warningText);
 
   // Project name
   const projectText = new TextRenderable(renderer, {
@@ -89,7 +107,7 @@ export function renderConfirmDeletePopup(
     content: `Project: ${projectName}`,
     fg: theme.colors.text,
   });
-  popup.add(projectText);
+  container.add(projectText);
 
   // Project path
   const pathText = new TextRenderable(renderer, {
@@ -97,7 +115,7 @@ export function renderConfirmDeletePopup(
     content: `Path: ${state.projectPath}`,
     fg: theme.colors.textMuted,
   });
-  popup.add(pathText);
+  container.add(pathText);
 
   // Spacer
   const spacer = new TextRenderable(renderer, {
@@ -105,7 +123,7 @@ export function renderConfirmDeletePopup(
     content: " ",
     fg: theme.colors.text,
   });
-  popup.add(spacer);
+  container.add(spacer);
 
   // Buttons row
   const buttonsRow = new BoxRenderable(renderer, {
@@ -114,7 +132,7 @@ export function renderConfirmDeletePopup(
     gap: 2,
     justifyContent: "center",
   });
-  popup.add(buttonsRow);
+  container.add(buttonsRow);
 
   // Delete button
   const deleteBtn = new BoxRenderable(renderer, {
@@ -154,7 +172,7 @@ export function renderConfirmDeletePopup(
     content: "─".repeat(56),
     fg: theme.colors.border,
   });
-  popup.add(sep2);
+  container.add(sep2);
 
   // Footer hint
   const footerHint = new TextRenderable(renderer, {
@@ -162,5 +180,8 @@ export function renderConfirmDeletePopup(
     content: "Press [d] to delete, [c] or Escape to cancel",
     fg: theme.colors.textMuted,
   });
-  popup.add(footerHint);
+  container.add(footerHint);
+
+  // Show the modal
+  showModal(modal);
 }

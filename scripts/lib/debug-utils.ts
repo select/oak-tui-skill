@@ -51,7 +51,7 @@ export function createDebugLogger(
         return JSON.stringify(a);
       })
       .join(" ");
-    const prefixStr = prefix ? `[${prefix}] ` : "";
+    const prefixStr = prefix != null && prefix !== "" ? `[${prefix}] ` : "";
     appendFileSync(DEBUG_LOG_PATH, `[${timestamp}] ${prefixStr}${message}\n`);
   };
 }

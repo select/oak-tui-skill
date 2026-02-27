@@ -282,6 +282,7 @@ export function loadOakConfig(): OakConfig {
 
 /**
  * Save Oak config to YAML file
+ * Merges with existing config to preserve other sections (e.g., projects)
  */
 export function saveOakConfig(config: OakConfig): void {
   try {
@@ -289,7 +290,27 @@ export function saveOakConfig(config: OakConfig): void {
       mkdirSync(CONFIG_DIR, { recursive: true });
     }
 
-    const yamlContent = yaml.dump(config, {
+    // Load existing config to preserve other fields
+    let existingConfig: Record<string, unknown> = {};
+    if (existsSync(CONFIG_FILE)) {
+      try {
+        const fileContents = readFileSync(CONFIG_FILE, "utf-8");
+        const parsed = yaml.load(fileContents);
+        if (isNonNullObject(parsed)) {
+          existingConfig = parsed as Record<string, unknown>;
+        }
+      } catch {
+        debug("Could not parse existing config, will overwrite");
+      }
+    }
+
+    // Merge new config with existing
+    const mergedConfig = {
+      ...existingConfig,
+      oakWidth: config.oakWidth,
+    };
+
+    const yamlContent = yaml.dump(mergedConfig, {
       indent: 2,
       lineWidth: 120,
       noRefs: true,

@@ -620,10 +620,17 @@ export function syncProjectPanes(
       debug(`Added pane ${paneInfo.paneId} to worktree ${wtPath}`);
       changed = true;
     } else {
-      // Update existing pane if path, session or command changed
-      if (existingPane.currentPath !== panePath || existingPane.sessionName !== paneInfo.sessionName || existingPane.currentCommand !== paneInfo.currentCommand || existingPane.paneTitle !== paneInfo.paneTitle) {
+      // Update existing pane if path, session, window, command or title changed
+      if (
+        existingPane.currentPath !== panePath ||
+        existingPane.sessionName !== paneInfo.sessionName ||
+        existingPane.windowId !== paneInfo.windowId ||
+        existingPane.currentCommand !== paneInfo.currentCommand ||
+        existingPane.paneTitle !== paneInfo.paneTitle
+      ) {
         existingPane.currentPath = panePath;
         existingPane.sessionName = paneInfo.sessionName;
+        existingPane.windowId = paneInfo.windowId;
         existingPane.currentCommand = paneInfo.currentCommand;
         existingPane.paneTitle = paneInfo.paneTitle;
         existingPane.isBackground = paneInfo.sessionName === "oak-bg";

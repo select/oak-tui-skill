@@ -76,23 +76,41 @@ bun install
 
 ## Usage
 
-Oak TUI runs inside a tmux pane. Use the launch script:
+### For AI Agents
+
+This skill is automatically activated when you mention keywords like "oak", "worktree", or "git worktree" in your conversation with an AI coding agent.
+
+**To invoke the skill:**
+```
+"Show me oak" or "Open the worktree TUI" or "Launch oak"
+```
+
+The agent will:
+1. Check if an instance is already running
+2. Ask if you want to restart (if existing) or launch fresh
+3. Open the TUI in a tmux pane on the right side of your current window
+
+For full agent instructions, see the [SKILL.md](SKILL.md) file.
+
+### For Manual Use
+
+Oak TUI runs inside a tmux pane. Use the launch script directly:
 
 ```bash
 # Launch TUI (creates tmux pane if needed)
-./scripts/launch.sh
+~/.config/opencode/skills/oak-tree-skill/scripts/launch.sh
 
 # Launch in dev mode with hot reload
-./scripts/launch.sh --dev
+~/.config/opencode/skills/oak-tree-skill/scripts/launch.sh --dev
 
 # Launch with debug logging
-./scripts/launch.sh --dev --debug
+~/.config/opencode/skills/oak-tree-skill/scripts/launch.sh --dev --debug
 
-# Restart existing instance
-./scripts/launch.sh --restart
+# Restart existing instance (fast, ~100ms)
+~/.config/opencode/skills/oak-tree-skill/scripts/launch.sh --restart
 
 # Kill existing instance
-./scripts/launch.sh --kill
+~/.config/opencode/skills/oak-tree-skill/scripts/launch.sh --kill
 ```
 
 ### Configuration

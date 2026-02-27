@@ -1475,6 +1475,50 @@ export function getWorkspaceDimensions(oakPaneId: string): {
 }
 
 /**
+ * Validate and enforce Oak pane width limits
+ * 
+ * Oak width should stay between 20-40% of total window width.
+ * If out of bounds, resize to nearest valid value.
+ * 
+ * @param oakPaneId - The Oak TUI pane ID
+ * @returns Success status and any adjustments made
+ */
+export function validateOakWidth(oakPaneId: string): { success: boolean; adjusted: boolean } {
+  try {
+    const windowWidth = parseInt(
+      execSync("tmux display-message -p '#{window_width}'", {
+        encoding: "utf-8",
+      }).trim()
+    );
+    const oakWidth = parseInt(
+      execSync(`tmux display-message -p -t ${oakPaneId} '#{pane_width}'`, {
+        encoding: "utf-8",
+      }).trim()
+    );
+
+    const minWidth = Math.floor(windowWidth * 0.2); // 20%
+    const maxWidth = Math.floor(windowWidth * 0.4); // 40%
+
+    if (oakWidth < minWidth) {
+      debug(`Oak width ${oakWidth} below minimum ${minWidth}, adjusting...`);
+      execSync(`tmux resize-pane -t ${oakPaneId} -x ${minWidth}`);
+      return { success: true, adjusted: true };
+    }
+
+    if (oakWidth > maxWidth) {
+      debug(`Oak width ${oakWidth} above maximum ${maxWidth}, adjusting...`);
+      execSync(`tmux resize-pane -t ${oakPaneId} -x ${maxWidth}`);
+      return { success: true, adjusted: true };
+    }
+
+    return { success: true, adjusted: false };
+  } catch (err) {
+    debug("Error validating Oak width:", err);
+    return { success: false, adjusted: false };
+  }
+}
+
+/**
  * Calculate pane layout for multi-pane view
  * @param numPanes - Total number of panes to display
  * @param workspaceWidth - Available workspace width (excluding Oak)
@@ -1658,6 +1702,9 @@ export function addPaneToMultiView(
       // Restore Oak pane width
       execSync(`tmux resize-pane -t ${oakPaneId} -x ${workspace.oakWidth}`);
       
+      // Validate Oak width is within acceptable bounds (20-40%)
+      validateOakWidth(oakPaneId);
+      
       // Update state
       const state = getGlobalState();
       const currentSession = getCurrentTmuxSession();
@@ -1772,6 +1819,9 @@ export function relayoutForegroundPanes(oakPaneId: string): { success: boolean }
     // Restore Oak pane width to ensure it didn't get affected
     execSync(`tmux resize-pane -t ${oakPaneId} -x ${workspace.oakWidth}`);
     debug(`Re-layout: Restored Oak pane width to ${workspace.oakWidth}`);
+
+    // Validate Oak width is within acceptable bounds (20-40%)
+    validateOakWidth(oakPaneId);
 
     return { success: true };
   } catch (err) {

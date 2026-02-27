@@ -500,9 +500,24 @@ export function syncProjectPanes(
   // Get all panes from current session and oak-bg
   const currentPanes = getCurrentSessionPanes(oakPaneId);
   const bgPanes = getBackgroundSessionPanes();
-  const allPanes = [...currentPanes, ...bgPanes];
+  // Filter out oak pane from background panes too (in case it was moved there)
+  const filteredBgPanes = oakPaneId ? bgPanes.filter((p) => p.paneId !== oakPaneId) : bgPanes;
+  const allPanes = [...currentPanes, ...filteredBgPanes];
 
   debug(`syncProjectPanes: found ${allPanes.length} total panes`);
+
+  // Remove oak pane from tracking if it exists (should never be tracked)
+  if (oakPaneId) {
+    for (const wtPath of Object.keys(project.worktrees)) {
+      const wt = project.worktrees[wtPath];
+      const beforeLen = wt.panes.length;
+      wt.panes = wt.panes.filter((p) => p.paneId !== oakPaneId);
+      if (wt.panes.length !== beforeLen) {
+        debug(`Removed oak pane ${oakPaneId} from tracking in ${wtPath}`);
+        changed = true;
+      }
+    }
+  }
 
   // First, remove stale panes from all worktrees
   for (const wtPath of Object.keys(project.worktrees)) {

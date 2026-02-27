@@ -121,7 +121,6 @@ export function updateFooter(
     searchQuery: string;
   },
   confirmDeleteState?: ConfirmDeleteState,
-  selectedItemType?: "project" | "worktree" | "pane" | null,
 ): void {
   let hints: FooterHint[] = [];
 
@@ -178,15 +177,12 @@ export function updateFooter(
     // Default state
     else {
       if (activeTab === "projects") {
-        // Context-sensitive hints based on selected item type
-        hints = [{ key: "↹", label: ": cycle " }, { key: "/", label: ": search " }];
-        if (selectedItemType === "project") {
-          hints.push({ key: "d", label: ": remove" });
-        } else if (selectedItemType === "worktree") {
-          hints.push({ key: "n", label: ": new pane" });
-        } else if (selectedItemType === "pane") {
-          hints.push({ key: "↵", label: ": focus" });
-        }
+        hints = [
+          { key: "↹", label: ": cycle " },
+          { key: "r", label: ": reload " },
+          { key: "d", label: ": remove " },
+          { key: "/", label: ": search" },
+        ];
       } else {
         hints = [
           { key: "↹", label: ": cycle " },

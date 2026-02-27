@@ -2,21 +2,20 @@
 
 A terminal UI for managing git worktrees, built with [Bun](https://bun.sh) and [@opentui/core](https://github.com/opentui/opentui).
 
+## Screenshots
+
 <p align="center">
-  <table>
-    <tr>
-      <td><img src="./screenshots/Screenshot from 2026-02-27 13-50-39.png" alt="Oak TUI Screenshot 1" width="200"></td>
-      <td><img src="./screenshots/Screenshot from 2026-02-27 13-53-55.png" alt="Oak TUI Screenshot 2" width="200"></td>
-      <td><img src="./screenshots/Screenshot from 2026-02-27 13-54-01.png" alt="Oak TUI Screenshot 3" width="200"></td>
-      <td><img src="./screenshots/Screenshot from 2026-02-27 13-54-12.png" alt="Oak TUI Screenshot 4" width="200"></td>
-    </tr>
-    <tr>
-      <td><img src="./screenshots/Screenshot from 2026-02-27 13-54-18.png" alt="Oak TUI Screenshot 5" width="200"></td>
-      <td><img src="./screenshots/Screenshot from 2026-02-27 13-54-38.png" alt="Oak TUI Screenshot 6" width="200"></td>
-      <td><img src="./screenshots/Screenshot from 2026-02-27 13-54-51.png" alt="Oak TUI Screenshot 7" width="200"></td>
-      <td><img src="./screenshots/Screenshot from 2026-02-27 13-55-02.png" alt="Oak TUI Screenshot 8" width="200"></td>
-    </tr>
-  </table>
+  <img src="./screenshots/Screenshot from 2026-02-27 13-50-39.png" alt="Projects View" width="24%">
+  <img src="./screenshots/Screenshot from 2026-02-27 13-53-55.png" alt="Board View" width="24%">
+  <img src="./screenshots/Screenshot from 2026-02-27 13-54-01.png" alt="File Browser" width="24%">
+  <img src="./screenshots/Screenshot from 2026-02-27 13-54-12.png" alt="Theme Selector" width="24%">
+</p>
+
+<p align="center">
+  <img src="./screenshots/Screenshot from 2026-02-27 13-54-18.png" alt="Worktree View" width="24%">
+  <img src="./screenshots/Screenshot from 2026-02-27 13-54-38.png" alt="Issue Detail" width="24%">
+  <img src="./screenshots/Screenshot from 2026-02-27 13-54-51.png" alt="Search View" width="24%">
+  <img src="./screenshots/Screenshot from 2026-02-27 13-55-02.png" alt="Delete Confirmation" width="24%">
 </p>
 
 ## Highlights

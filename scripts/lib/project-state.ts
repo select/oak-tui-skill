@@ -1809,10 +1809,27 @@ export function relayoutForegroundPanes(oakPaneId: string): { success: boolean }
       // Two panes - 50/50 horizontal split
       const halfWidth = Math.floor(workspace.width / 2);
       const sortedPanes = visiblePanes.sort((a, b) => a.left - b.left);
-
-      for (const pane of sortedPanes) {
-        execSync(`tmux resize-pane -t ${pane.id} -x ${halfWidth}`);
-        debug(`Re-layout: Pane ${pane.id} resized to 50% width ${halfWidth}`);
+      
+      // Check if panes are vertically stacked (same left position)
+      const pane1 = sortedPanes[0];
+      const pane2 = sortedPanes[1];
+      
+      if (pane1 !== undefined && pane2 !== undefined) {
+        if (pane1.left === pane2.left) {
+          // Panes are vertically stacked - need to convert to horizontal
+          debug(`Re-layout: Converting vertical stack to horizontal split`);
+          
+          // Break pane2 into its own window, then join horizontally
+          execSync(`tmux break-pane -d -s ${pane2.id}`);
+          execSync("sleep 0.1");
+          execSync(`tmux join-pane -h -t ${pane1.id} -s ${pane2.id}`);
+          execSync("sleep 0.1");
+        }
+        
+        // Now resize both panes to 50% width
+        execSync(`tmux resize-pane -t ${pane1.id} -x ${halfWidth}`);
+        execSync(`tmux resize-pane -t ${pane2.id} -x ${halfWidth}`);
+        debug(`Re-layout: Panes ${pane1.id} and ${pane2.id} resized to 50% width ${halfWidth}`);
       }
     } else {
       // 3+ panes - master layout (50% left, 50% right with vertical stack)

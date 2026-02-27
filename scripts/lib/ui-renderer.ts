@@ -630,6 +630,7 @@ export function getStateSelectableCount(
   expandedProjects: ReadonlySet<string>,
   expandedWorktrees: ReadonlySet<string>,
   leftPaneId: string | null,
+  oakWindowId: string | null = null,
 ): number {
   let count = 0;
   const projects = getProjectsInConfigOrder(state);
@@ -643,10 +644,12 @@ export function getStateSelectableCount(
         count++; // Worktree
 
         if (expandedWorktrees.has(wt.path)) {
-          // Only count visible panes
+          // Count visible panes - must match rendering logic
           const visiblePanes = wt.panes.filter((p) => {
             if (p.isBackground) return true;
-            return p.paneId === leftPaneId;
+            // Only show foreground panes that are in the same window as Oak
+            if (oakWindowId != null && p.windowId !== oakWindowId) return false;
+            return !p.isBackground;
           });
           count += visiblePanes.length;
         }
@@ -666,6 +669,7 @@ export function getStateItemAtIndex(
   expandedWorktrees: ReadonlySet<string>,
   index: number,
   leftPaneId: string | null,
+  oakWindowId: string | null = null,
 ): StateProjectItem | null {
   let currentIndex = 0;
   const projects = getProjectsInConfigOrder(state);
@@ -685,10 +689,12 @@ export function getStateItemAtIndex(
         currentIndex++;
 
         if (expandedWorktrees.has(wt.path)) {
-          // Only iterate visible panes
+          // Only iterate visible panes - must match rendering logic
           const visiblePanes = wt.panes.filter((p) => {
             if (p.isBackground) return true;
-            return p.paneId === leftPaneId;
+            // Only show foreground panes that are in the same window as Oak
+            if (oakWindowId != null && p.windowId !== oakWindowId) return false;
+            return !p.isBackground;
           });
 
           for (const pane of visiblePanes) {

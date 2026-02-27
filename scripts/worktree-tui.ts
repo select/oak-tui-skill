@@ -470,7 +470,7 @@ async function main() {
     if (activeTab === "projects") {
       const state = getGlobalState();
       const leftPane = getLeftPane();
-      const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+      const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane, getTmuxWindowId());
       debug(`refreshFooter: selectedIndex=${selectedIndex}, item=${JSON.stringify(item)}`);
       if (item != null) {
         selectedItemType = item.type;
@@ -976,6 +976,7 @@ async function main() {
                 expandedProjects,
                 expandedWorktrees,
                 getLeftPane(),
+                getTmuxWindowId(),
               );
               if (selectedIndex >= newTotal) {
                 selectedIndex = Math.max(0, newTotal - 1);
@@ -1000,7 +1001,7 @@ async function main() {
       // Get state for navigation
       const state = getGlobalState();
       const leftPane = getLeftPane();
-      const totalItems = getStateSelectableCount(state, expandedProjects, expandedWorktrees, leftPane);
+      const totalItems = getStateSelectableCount(state, expandedProjects, expandedWorktrees, leftPane, getTmuxWindowId());
 
       if (keyName === "/" || keyName === "slash") {
         projectsSearchMode = true;
@@ -1016,7 +1017,7 @@ async function main() {
         refreshFooter();
       } else if (keyName === "left" || keyName === "h") {
         // Collapse/fold the current item
-        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane, getTmuxWindowId());
         if (item) {
           if (item.type === "project") {
             // On a project - collapse it if expanded
@@ -1042,7 +1043,7 @@ async function main() {
         }
       } else if (keyName === "right" || keyName === "l") {
         // Expand/unfold the current item
-        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane, getTmuxWindowId());
         if (item) {
           if (item.type === "project") {
             // Expand project
@@ -1062,7 +1063,7 @@ async function main() {
         }
       } else if (keyName === "return") {
         // Enter: expand/collapse or bring pane to front
-        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane, getTmuxWindowId());
         if (item) {
           if (item.type === "project") {
             // Toggle project expansion
@@ -1107,7 +1108,7 @@ async function main() {
         }
       } else if (keyName === "space") {
         // Space: same as plain Enter
-        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane, getTmuxWindowId());
         if (item) {
           if (item.type === "project") {
             if (expandedProjects.has(item.projectPath)) {
@@ -1148,7 +1149,7 @@ async function main() {
         }
       } else if (keyName === "n") {
         // n: Create new pane for worktree
-        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane, getTmuxWindowId());
         debug(`n key pressed, item type: ${item?.type}`);
         if (item?.type === "worktree" && item.worktreePath != null && item.worktreePath !== "") {
           debug(`Creating new pane for worktree: ${item.worktreePath}`);
@@ -1157,7 +1158,7 @@ async function main() {
         }
       } else if (keyName === "a") {
         // a: Add/remove pane to/from multi-view
-        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane, getTmuxWindowId());
         debug(`a key pressed, item type: ${item?.type}`);
         if (item?.type === "pane" && item.paneId != null && item.paneId !== "") {
           if (item.projectPath in state.projects && item.worktreePath != null && item.worktreePath !== "" && item.worktreePath in state.projects[item.projectPath].worktrees) {
@@ -1171,7 +1172,7 @@ async function main() {
         }
       } else if (keyName === "d") {
         // Show confirmation popup for deleting project from recent list
-        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane, getTmuxWindowId());
         if (item?.type === "project") {
           showConfirmDelete(confirmDeleteState, item.projectPath);
           refreshFooter();

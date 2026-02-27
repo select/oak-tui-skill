@@ -5,14 +5,13 @@ A terminal UI for managing git worktrees, built with [Bun](https://bun.sh) and [
 ## Screenshots
 
 <p align="center">
-  <img src="./screenshots/Screenshot from 2026-02-27 13-50-39.png" alt="Projects View" width="24%">
   <img src="./screenshots/Screenshot from 2026-02-27 13-53-55.png" alt="Board View" width="24%">
   <img src="./screenshots/Screenshot from 2026-02-27 13-54-01.png" alt="File Browser" width="24%">
   <img src="./screenshots/Screenshot from 2026-02-27 13-54-12.png" alt="Theme Selector" width="24%">
+  <img src="./screenshots/Screenshot from 2026-02-27 13-54-18.png" alt="Worktree View" width="24%">
 </p>
 
 <p align="center">
-  <img src="./screenshots/Screenshot from 2026-02-27 13-54-18.png" alt="Worktree View" width="24%">
   <img src="./screenshots/Screenshot from 2026-02-27 13-54-38.png" alt="Issue Detail" width="24%">
   <img src="./screenshots/Screenshot from 2026-02-27 13-54-51.png" alt="Search View" width="24%">
   <img src="./screenshots/Screenshot from 2026-02-27 13-55-02.png" alt="Delete Confirmation" width="24%">

@@ -5,6 +5,7 @@ import {
   createTextAttributes,
   KeyEvent,
 } from "@opentui/core";
+import { execSync } from "node:child_process";
 
 // Type for keyInput that properly types the event methods
 // The KeyHandler class extends EventEmitter<KeyHandlerEventMap> but TypeScript
@@ -104,6 +105,7 @@ import {
   getVisibleForegroundPanes,
   sendPaneToBackground,
   relayoutForegroundPanes,
+  getWorkspaceDimensions,
 } from "./lib/project-state";
 import {
   existsSync,
@@ -1097,6 +1099,9 @@ async function main() {
                   for (const visiblePane of visiblePanes) {
                     sendPaneToBackground(visiblePane.id);
                   }
+                  // Ensure Oak width is restored after sending panes to background
+                  const workspace = getWorkspaceDimensions(oakPaneId);
+                  execSync(`tmux resize-pane -t ${oakPaneId} -x ${workspace.oakWidth}`);
                 }
                 // Now add the selected pane to foreground (will be the only one)
                 addPaneToMultiView(item.paneId, true, oakPaneId);
@@ -1151,6 +1156,9 @@ async function main() {
                   for (const visiblePane of visiblePanes) {
                     sendPaneToBackground(visiblePane.id);
                   }
+                  // Ensure Oak width is restored after sending panes to background
+                  const workspace = getWorkspaceDimensions(oakPaneId);
+                  execSync(`tmux resize-pane -t ${oakPaneId} -x ${workspace.oakWidth}`);
                 }
                 // Now add the selected pane to foreground (will be the only one)
                 addPaneToMultiView(item.paneId, true, oakPaneId);

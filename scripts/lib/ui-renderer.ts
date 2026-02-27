@@ -841,6 +841,10 @@ export function renderProjectsFromState(
           return p.paneId === leftPaneId;
         });
 
+        // Count foreground panes for multi-view indicator
+        const foregroundPanes = wt.panes.filter((p) => !p.isBackground);
+        const foregroundCount = foregroundPanes.length;
+
         const wtExpandIcon = visiblePanes.length > 0
           ? (wtIsExpanded ? "\u{25BC}" : "\u{25B6}")
           : " ";
@@ -908,8 +912,16 @@ export function renderProjectsFromState(
             })
           : null;
 
-        // Pane count badge (only visible panes)
-        const paneCountBadge = visiblePanes.length > 0
+        // Pane count badge
+        // Show multi-view count if there are multiple foreground panes
+        // Otherwise show total visible panes (background + active foreground)
+        const paneCountBadge = foregroundCount > 1
+          ? new TextRenderable(renderer, {
+              id: `worktree-pane-count-${renderCounter}-${i}-${wtIdx}`,
+              content: ` (${foregroundCount} visible)`,
+              fg: "#a855f7", // Purple to indicate multi-view
+            })
+          : visiblePanes.length > 0
           ? new TextRenderable(renderer, {
               id: `worktree-pane-count-${renderCounter}-${i}-${wtIdx}`,
               content: ` (${visiblePanes.length})`,

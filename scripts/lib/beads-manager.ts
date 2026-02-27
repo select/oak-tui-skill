@@ -6,10 +6,6 @@ import { join } from "node:path";
 import type { BeadsIssue, GroupedIssues, ReadonlyGroupedIssues } from "./types";
 import { IGNORED_DIRS } from "./constants";
 import { capitalize } from "./string-utils";
-import { createDebugLogger } from "./debug-utils";
-
-const DEBUG = process.argv.includes("--debug");
-const debug = createDebugLogger(DEBUG);
 
 /**
  * Find .beads directory using breadth-first search.
@@ -102,28 +98,20 @@ function parseBeadsIssues(json: string): BeadsIssue[] {
 export function fetchBeadsIssues(workingDir?: string): BeadsIssue[] {
   try {
     const searchPath = workingDir ?? process.cwd();
-    debug(`fetchBeadsIssues called with workingDir: ${workingDir}`);
-    debug(`searchPath: ${searchPath}`);
     const beadsDir = findBeadsDirectory(searchPath);
-    debug(`findBeadsDirectory returned: ${beadsDir}`);
 
     if (beadsDir === null) {
-      debug("No .beads directory found, returning empty array");
       return []; // No .beads found
     }
 
-    debug(`Executing bd list --all --json in: ${beadsDir}`);
-    const output = execSync("bd list --all --json", {
+    const output = execSync("bd list --json", {
       encoding: "utf-8",
       timeout: 5000,
       cwd: beadsDir, // Use directory containing .beads
       stdio: ["pipe", "pipe", "ignore"], // Suppress stderr
     });
-    const issues = parseBeadsIssues(output);
-    debug(`Parsed ${issues.length} beads issues`);
-    return issues;
-  } catch (error) {
-    debug(`Error in fetchBeadsIssues: ${error}`);
+    return parseBeadsIssues(output);
+  } catch {
     return [];
   }
 }
@@ -176,11 +164,9 @@ export function groupIssuesByStatus(
   for (const issue of issues) {
     if (issue.status === "closed") {
       // Only show issues closed today
-      if (issue.closed_at != null && issue.closed_at !== "") {
-        const closedDate = new Date(issue.closed_at).toDateString();
-        if (closedDate === today) {
-          grouped.closed.push(issue);
-        }
+      const closedDate = new Date(issue.updated_at).toDateString();
+      if (closedDate === today) {
+        grouped.closed.push(issue);
       }
     } else if (issue.status === "in_progress") {
       grouped.in_progress.push(issue);

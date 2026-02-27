@@ -145,10 +145,6 @@ fi
 
 log "Created new pane: $NEW_PANE"
 
-# Set the pane title to "Oak"
-tmux select-pane -t "$NEW_PANE" -T "Oak"
-log "Set pane title to 'Oak'"
-
 # Verify the new pane exists
 sleep 0.5
 if tmux list-panes -a -F '#{pane_id}' | grep -q "^${NEW_PANE}$"; then

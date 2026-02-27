@@ -1005,8 +1005,8 @@ export function renderProjectsFromState(
             paneBox.onMouseOut = paneHoverHandlers.onMouseOut;
 
             // Pane icon and status
-            const paneIcon = pane.isBackground ? "◌" : "●";
-            const paneIconColor = pane.isBackground ? "#f97316" : "#a855f7";
+            const paneIcon = pane.isBackground ? "○" : "●";
+            const paneIconColor = "#a855f7"; // Purple for both background and foreground
 
             const paneIconText = new TextRenderable(renderer, {
               id: `pane-icon-${renderCounter}-${i}-${wtIdx}-${paneIdx}`,

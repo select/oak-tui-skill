@@ -1082,19 +1082,27 @@ async function main() {
             }
             updateContent();
           } else if (item.type === "pane" && item.paneId != null && item.paneId !== "") {
-            // Pane behavior:
-            // - Background pane: add to multi-view
-            // - Foreground pane: send ALL other panes to background (isolate this pane)
+            // Pane behavior: Enter ALWAYS isolates the selected pane
+            // - Send ALL other foreground panes to background
+            // - Then bring the selected pane to foreground (if it's background)
             if (item.projectPath in state.projects && item.worktreePath != null && item.worktreePath !== "" && item.worktreePath in state.projects[item.projectPath].worktrees) {
               const pane = state.projects[item.projectPath].worktrees[item.worktreePath].panes.find((p) => p.paneId === item.paneId);
               
+              // Get all visible foreground panes
+              const visiblePanes = getVisibleForegroundPanes(oakPaneId);
+              
               if (pane?.isBackground === true) {
-                // Background pane: add to multi-view
+                // Background pane: send all existing foreground panes to bg, then add this one
+                if (visiblePanes.length > 0) {
+                  for (const visiblePane of visiblePanes) {
+                    sendPaneToBackground(visiblePane.id);
+                  }
+                }
+                // Now add the selected pane to foreground (will be the only one)
                 addPaneToMultiView(item.paneId, true, oakPaneId);
                 updateContent();
               } else {
                 // Foreground pane: send all OTHER foreground panes to background
-                const visiblePanes = getVisibleForegroundPanes(oakPaneId);
                 if (visiblePanes.length > 1) {
                   // Send all other panes to background
                   for (const visiblePane of visiblePanes) {
@@ -1130,17 +1138,25 @@ async function main() {
             }
             updateContent();
           } else if (item.type === "pane" && item.paneId != null && item.paneId !== "") {
-            // Pane behavior: same as Enter key
+            // Pane behavior: same as Enter key - ALWAYS isolate the selected pane
             if (item.projectPath in state.projects && item.worktreePath != null && item.worktreePath !== "" && item.worktreePath in state.projects[item.projectPath].worktrees) {
               const pane = state.projects[item.projectPath].worktrees[item.worktreePath].panes.find((p) => p.paneId === item.paneId);
               
+              // Get all visible foreground panes
+              const visiblePanes = getVisibleForegroundPanes(oakPaneId);
+              
               if (pane?.isBackground === true) {
-                // Background pane: add to multi-view
+                // Background pane: send all existing foreground panes to bg, then add this one
+                if (visiblePanes.length > 0) {
+                  for (const visiblePane of visiblePanes) {
+                    sendPaneToBackground(visiblePane.id);
+                  }
+                }
+                // Now add the selected pane to foreground (will be the only one)
                 addPaneToMultiView(item.paneId, true, oakPaneId);
                 updateContent();
               } else {
                 // Foreground pane: send all OTHER foreground panes to background
-                const visiblePanes = getVisibleForegroundPanes(oakPaneId);
                 if (visiblePanes.length > 1) {
                   // Send all other panes to background
                   for (const visiblePane of visiblePanes) {

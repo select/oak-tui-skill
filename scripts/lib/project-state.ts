@@ -362,7 +362,8 @@ export function getWorktreesForRepo(repoPath: string): Array<{ path: string; bra
       });
     }
 
-    return worktrees;
+    // Filter out beads internal worktrees (in .git/beads-worktrees/)
+    return worktrees.filter(wt => !wt.path.includes("/.git/beads-worktrees/"));
   } catch {
     return [];
   }

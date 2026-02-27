@@ -1671,15 +1671,111 @@ export function addPaneToMultiView(
       
     } else {
       // Remove from foreground: send to background
+      
+      // Edge case: Don't allow removing the last foreground pane
+      const visiblePanes = getVisibleForegroundPanes(oakPaneId);
+      if (visiblePanes.length <= 1) {
+        debug("Cannot remove last foreground pane");
+        return { success: false };
+      }
+      
       const result = sendPaneToBackground(paneId);
       if (result.success) {
         debug(`Removed pane ${paneId} from multi-view`);
+        
+        // Re-layout remaining panes
+        const relayoutResult = relayoutForegroundPanes(oakPaneId);
+        if (!relayoutResult.success) {
+          debug("Warning: Re-layout failed after removing pane");
+        }
+        
         return { success: true, action: "removed" };
       }
       return { success: false };
     }
   } catch (err) {
     debug("Error in addPaneToMultiView:", err);
+    return { success: false };
+  }
+}
+
+/**
+ * Re-layout remaining foreground panes after a pane is removed
+ * 
+ * Automatically adjusts the layout based on the number of remaining panes:
+ * - 1 pane: single pane takes full workspace (100% - Oak 30%)
+ * - 2 panes: 50/50 horizontal split
+ * - 3+ panes: master layout (50% left master, 50% right vertical stack)
+ * 
+ * @param oakPaneId - The Oak TUI pane ID
+ * @returns Success status
+ */
+export function relayoutForegroundPanes(oakPaneId: string): { success: boolean } {
+  debug("relayoutForegroundPanes: Starting re-layout");
+
+  try {
+    const visiblePanes = getVisibleForegroundPanes(oakPaneId);
+    const paneCount = visiblePanes.length;
+
+    debug(`Re-layout: ${paneCount} visible panes`);
+
+    // Edge case: no foreground panes (shouldn't happen, but handle gracefully)
+    if (paneCount === 0) {
+      debug("No foreground panes to re-layout");
+      return { success: true };
+    }
+
+    const workspace = getWorkspaceDimensions(oakPaneId);
+
+    if (paneCount === 1) {
+      // Single pane - take full workspace width
+      const pane = visiblePanes[0];
+      if (pane !== undefined) {
+        execSync(`tmux resize-pane -t ${pane.id} -x ${workspace.width}`);
+        debug(`Re-layout: Single pane ${pane.id} resized to full width ${workspace.width}`);
+      }
+    } else if (paneCount === 2) {
+      // Two panes - 50/50 horizontal split
+      const halfWidth = Math.floor(workspace.width / 2);
+      const sortedPanes = visiblePanes.sort((a, b) => a.left - b.left);
+
+      for (const pane of sortedPanes) {
+        execSync(`tmux resize-pane -t ${pane.id} -x ${halfWidth}`);
+        debug(`Re-layout: Pane ${pane.id} resized to 50% width ${halfWidth}`);
+      }
+    } else {
+      // 3+ panes - master layout (50% left, 50% right with vertical stack)
+      const masterWidth = Math.floor(workspace.width / 2);
+      const stackWidth = workspace.width - masterWidth;
+      const sortedPanes = visiblePanes.sort((a, b) => a.left - b.left);
+      const masterPane = sortedPanes[0];
+      const stackPanes = sortedPanes.slice(1);
+
+      debug(`Re-layout: Master pane: ${masterPane?.id}, stack panes: ${stackPanes.map(p => p.id).join(", ")}`);
+
+      // Resize master to 50% width
+      if (masterPane !== undefined) {
+        execSync(`tmux resize-pane -t ${masterPane.id} -x ${masterWidth}`);
+        debug(`Re-layout: Master pane ${masterPane.id} resized to ${masterWidth}`);
+      }
+
+      // Re-calculate stack heights
+      const stackPaneHeight = Math.floor(workspace.height / stackPanes.length);
+
+      for (const stackPane of stackPanes) {
+        execSync(`tmux resize-pane -t ${stackPane.id} -x ${stackWidth}`);
+        execSync(`tmux resize-pane -t ${stackPane.id} -y ${stackPaneHeight}`);
+        debug(`Re-layout: Stack pane ${stackPane.id} resized to ${stackWidth}x${stackPaneHeight}`);
+      }
+    }
+
+    // Restore Oak pane width to ensure it didn't get affected
+    execSync(`tmux resize-pane -t ${oakPaneId} -x ${workspace.oakWidth}`);
+    debug(`Re-layout: Restored Oak pane width to ${workspace.oakWidth}`);
+
+    return { success: true };
+  } catch (err) {
+    debug("Error in relayoutForegroundPanes:", err);
     return { success: false };
   }
 }

@@ -123,6 +123,7 @@ export function updateFooter(
   confirmDeleteState?: ConfirmDeleteState,
   selectedItemType?: "project" | "worktree" | "pane" | null,
   selectedItemIsBackground?: boolean,
+  visibleForegroundPaneCount?: number,
 ): void {
   let hints: FooterHint[] = [];
 
@@ -189,7 +190,8 @@ export function updateFooter(
           // Show context-aware hint based on whether pane is background or foreground
           if (selectedItemIsBackground === true) {
             hints.push({ key: "a", label: ": add to view" });
-          } else {
+          } else if ((visibleForegroundPaneCount ?? 0) > 1) {
+            // Only show "send to bg" if there's more than one foreground pane
             hints.push({ key: "a", label: ": send to bg" });
           }
           hints.push({ key: "↵", label: ": focus" });

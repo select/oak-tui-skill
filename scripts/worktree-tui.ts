@@ -478,6 +478,10 @@ async function main() {
       }
     }
 
+    // Get visible foreground pane count for context-aware hints
+    const oakPaneId = getTmuxPaneId();
+    const visibleForegroundPaneCount = oakPaneId != null ? getVisibleForegroundPanes(oakPaneId).length : 0;
+
     updateFooter(
       ui.footer,
       activeTab,
@@ -492,6 +496,7 @@ async function main() {
       confirmDeleteState,
       selectedItemType,
       selectedItemIsBackground,
+      visibleForegroundPaneCount,
     );
   }
 

@@ -1,19 +1,13 @@
 // Project and git worktree management
 
-import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, basename } from "node:path";
+import { execSync } from "child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { join, basename } from "path";
 import type { Worktree, ProjectNode } from "./types";
 import { hasBackgroundPane } from "./tmux-manager";
 import { DATA_DIR } from "./constants";
 import { debug, setDebugFn } from "./debug-utils";
 import { isRecord } from "./type-guards";
-import {
-  getGlobalState,
-  saveGlobalState,
-  addOrUpdateProject,
-  worktreeHasBackgroundPanes,
-} from "./project-state";
 
 export { debug, setDebugFn };
 
@@ -161,7 +155,6 @@ export function loadRecentProjects(): RecentProject[] {
 /**
  * Save a project to recent projects list
  * Automatically resolves worktrees to their main repo path to avoid duplicates
- * Also updates the YAML state file
  */
 export function saveRecentProject(projectPath: string): void {
   try {
@@ -176,7 +169,6 @@ export function saveRecentProject(projectPath: string): void {
       return;
     }
 
-    // Update legacy JSON format (for backward compatibility)
     const projects = loadRecentProjects();
     const existing = projects.find(
       (p: Readonly<RecentProject>) => p.path === mainRepoPath,
@@ -196,11 +188,6 @@ export function saveRecentProject(projectPath: string): void {
     const trimmed = projects.slice(0, 20);
 
     writeFileSync(RECENT_PROJECTS_FILE, JSON.stringify(trimmed, null, 2));
-
-    // Update YAML state
-    const state = getGlobalState();
-    addOrUpdateProject(state, mainRepoPath);
-    saveGlobalState();
   } catch (err) {
     debug("Error saving recent project:", err);
   }
@@ -208,7 +195,6 @@ export function saveRecentProject(projectPath: string): void {
 
 /**
  * Remove a project from the recent projects list
- * Also removes from YAML state
  */
 export function removeRecentProject(projectPath: string): boolean {
   try {
@@ -224,14 +210,6 @@ export function removeRecentProject(projectPath: string): boolean {
     }
 
     writeFileSync(RECENT_PROJECTS_FILE, JSON.stringify(filtered, null, 2));
-
-    // Remove from YAML state
-    const state = getGlobalState();
-    if (projectPath in state.projects) {
-      delete state.projects[projectPath];
-      saveGlobalState();
-    }
-
     return true;
   } catch (err) {
     debug("Error removing recent project:", err);
@@ -291,29 +269,19 @@ export function deduplicateRecentProjects(): number {
 
 /**
  * Build hierarchical project nodes from recent projects
- * Preserves the order from recentProjects (sorted by lastAccessed)
- * Uses both legacy JSON tracking and new YAML state for pane detection
  */
 export function buildProjectNodes(
   recentProjects: readonly Readonly<RecentProject>[],
   currentGitRoot: string | null,
 ): ProjectNode[] {
   const nodes: ProjectNode[] = [];
-  const state = getGlobalState();
 
-  // Sort projects by lastAccessed descending (most recent first) for stable order
-  const sortedProjects = [...recentProjects].sort(
-    (a, b) => b.lastAccessed - a.lastAccessed,
-  );
-
-  for (const project of sortedProjects) {
+  for (const project of recentProjects) {
     const worktrees = getWorktrees(project.path);
     const isActive = project.path === currentGitRoot;
 
-    // Check if any worktree has a pane - check both legacy and new state
-    const hasAnyPane = worktrees.some(
-      (wt) => hasBackgroundPane(wt.path) || worktreeHasBackgroundPanes(state, wt.path),
-    );
+    // Check if any worktree has a background pane
+    const hasAnyPane = worktrees.some((wt) => hasBackgroundPane(wt.path));
 
     nodes.push({
       path: project.path,

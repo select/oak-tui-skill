@@ -3,10 +3,20 @@
 A terminal UI for managing git worktrees, built with [Bun](https://bun.sh) and [@opentui/core](https://github.com/opentui/opentui).
 
 <p align="center">
-  <!-- Add screenshots here -->
-  <!-- <img src="./assets/screenshot-main.png" alt="Oak TUI - Projects View" width="800"> -->
-  <!-- <img src="./assets/screenshot-files.png" alt="Oak TUI - File Browser" width="800"> -->
-  <em>Screenshots coming soon</em>
+  <table>
+    <tr>
+      <td><img src="./screenshots/Screenshot from 2026-02-27 13-50-39.png" alt="Oak TUI Screenshot 1" width="200"></td>
+      <td><img src="./screenshots/Screenshot from 2026-02-27 13-53-55.png" alt="Oak TUI Screenshot 2" width="200"></td>
+      <td><img src="./screenshots/Screenshot from 2026-02-27 13-54-01.png" alt="Oak TUI Screenshot 3" width="200"></td>
+      <td><img src="./screenshots/Screenshot from 2026-02-27 13-54-12.png" alt="Oak TUI Screenshot 4" width="200"></td>
+    </tr>
+    <tr>
+      <td><img src="./screenshots/Screenshot from 2026-02-27 13-54-18.png" alt="Oak TUI Screenshot 5" width="200"></td>
+      <td><img src="./screenshots/Screenshot from 2026-02-27 13-54-38.png" alt="Oak TUI Screenshot 6" width="200"></td>
+      <td><img src="./screenshots/Screenshot from 2026-02-27 13-54-51.png" alt="Oak TUI Screenshot 7" width="200"></td>
+      <td><img src="./screenshots/Screenshot from 2026-02-27 13-55-02.png" alt="Oak TUI Screenshot 8" width="200"></td>
+    </tr>
+  </table>
 </p>
 
 ## Highlights

@@ -68,6 +68,7 @@ export interface BeadsIssue {
   issue_type: BeadsType;
   created_at: string;
   updated_at: string;
+  closed_at?: string;
   dependency_count: number;
   dependent_count: number;
   assignee?: string;
@@ -84,6 +85,7 @@ export interface ReadonlyBeadsIssue {
   readonly issue_type: BeadsType;
   readonly created_at: string;
   readonly updated_at: string;
+  readonly closed_at?: string;
   readonly dependency_count: number;
   readonly dependent_count: number;
   readonly assignee?: string;

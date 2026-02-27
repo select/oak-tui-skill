@@ -97,13 +97,13 @@ import {
   syncAllProjectPanes,
   getCurrentActiveWorktreePath,
   addOrUpdateProject,
-  bringPaneToForeground,
   createNewPaneForWorktree,
   getLeftPaneId,
   getWorktreesWithBackgroundPanes,
   addPaneToMultiView,
   getVisibleForegroundPanes,
-  cycleToNextVisiblePane,
+  sendPaneToBackground,
+  relayoutForegroundPanes,
 } from "./lib/project-state";
 import {
   existsSync,
@@ -1082,26 +1082,31 @@ async function main() {
             }
             updateContent();
           } else if (item.type === "pane" && item.paneId != null && item.paneId !== "") {
-            // Pane behavior (updated for multi-pane cycling):
-            // - If only one pane visible: bring background pane to front
-            // - If multiple panes visible: cycle focus to next visible pane
+            // Pane behavior:
+            // - Background pane: add to multi-view
+            // - Foreground pane: send ALL other panes to background (isolate this pane)
             if (item.projectPath in state.projects && item.worktreePath != null && item.worktreePath !== "" && item.worktreePath in state.projects[item.projectPath].worktrees) {
               const pane = state.projects[item.projectPath].worktrees[item.worktreePath].panes.find((p) => p.paneId === item.paneId);
               
-              // Count visible foreground panes
-              const visiblePanes = getVisibleForegroundPanes(oakPaneId);
-              
               if (pane?.isBackground === true) {
-                // Background pane: bring to foreground (regardless of count)
-                bringPaneToForeground(item.paneId, oakPaneId);
+                // Background pane: add to multi-view
+                addPaneToMultiView(item.paneId, true, oakPaneId);
                 updateContent();
-              } else if (visiblePanes.length === 1) {
-                // Only one foreground pane visible: no-op (or could bring a background pane to front)
-                // For now, do nothing to keep it simple
-              } else if (visiblePanes.length > 1) {
-                // Multiple foreground panes visible: cycle focus to next pane
-                cycleToNextVisiblePane(oakPaneId);
-                // No need to update content since we're just changing focus
+              } else {
+                // Foreground pane: send all OTHER foreground panes to background
+                const visiblePanes = getVisibleForegroundPanes(oakPaneId);
+                if (visiblePanes.length > 1) {
+                  // Send all other panes to background
+                  for (const visiblePane of visiblePanes) {
+                    if (visiblePane.id !== item.paneId) {
+                      sendPaneToBackground(visiblePane.id);
+                    }
+                  }
+                  // Re-layout after sending panes to background
+                  relayoutForegroundPanes(oakPaneId);
+                  updateContent();
+                }
+                // If only one pane visible, do nothing (already isolated)
               }
             }
           }
@@ -1126,33 +1131,49 @@ async function main() {
             updateContent();
           } else if (item.type === "pane" && item.paneId != null && item.paneId !== "") {
             // Pane behavior: same as Enter key
-            // - If only one pane visible: bring background pane to front
-            // - If multiple panes visible: cycle focus to next visible pane
             if (item.projectPath in state.projects && item.worktreePath != null && item.worktreePath !== "" && item.worktreePath in state.projects[item.projectPath].worktrees) {
               const pane = state.projects[item.projectPath].worktrees[item.worktreePath].panes.find((p) => p.paneId === item.paneId);
               
-              // Count visible foreground panes
-              const visiblePanes = getVisibleForegroundPanes(oakPaneId);
-              
               if (pane?.isBackground === true) {
-                // Background pane: bring to foreground (regardless of count)
-                bringPaneToForeground(item.paneId, oakPaneId);
+                // Background pane: add to multi-view
+                addPaneToMultiView(item.paneId, true, oakPaneId);
                 updateContent();
-              } else if (visiblePanes.length === 1) {
-                // Only one foreground pane visible: no-op
-              } else if (visiblePanes.length > 1) {
-                // Multiple foreground panes visible: cycle focus to next pane
-                cycleToNextVisiblePane(oakPaneId);
+              } else {
+                // Foreground pane: send all OTHER foreground panes to background
+                const visiblePanes = getVisibleForegroundPanes(oakPaneId);
+                if (visiblePanes.length > 1) {
+                  // Send all other panes to background
+                  for (const visiblePane of visiblePanes) {
+                    if (visiblePane.id !== item.paneId) {
+                      sendPaneToBackground(visiblePane.id);
+                    }
+                  }
+                  // Re-layout after sending panes to background
+                  relayoutForegroundPanes(oakPaneId);
+                  updateContent();
+                }
+                // If only one pane visible, do nothing (already isolated)
               }
             }
           }
         }
       } else if (keyName === "n") {
         // n: Create new pane for worktree
+        // In multi-pane mode: send all existing foreground panes to background first
         const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane, getTmuxWindowId());
         debug(`n key pressed, item type: ${item?.type}`);
         if (item?.type === "worktree" && item.worktreePath != null && item.worktreePath !== "") {
           debug(`Creating new pane for worktree: ${item.worktreePath}`);
+          
+          // If multiple panes visible, send them all to background first
+          const visiblePanes = getVisibleForegroundPanes(oakPaneId);
+          if (visiblePanes.length > 1) {
+            for (const visiblePane of visiblePanes) {
+              sendPaneToBackground(visiblePane.id);
+            }
+          }
+          
+          // Create new pane (will be the only foreground pane)
           createNewPaneForWorktree(item.worktreePath, oakPaneId);
           updateContent();
         }

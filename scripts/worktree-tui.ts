@@ -107,6 +107,7 @@ import {
   relayoutForegroundPanes,
   getWorkspaceDimensions,
   loadOakConfig,
+  saveOakConfig,
 } from "./lib/project-state";
 import {
   existsSync,
@@ -340,9 +341,11 @@ async function main() {
   const oakPaneId = getTmuxPaneId() ?? "";
   debug("Oak pane ID:", oakPaneId);
 
-  // Initialize Oak width from config
+  // Initialize Oak width from config and track it
+  let lastSavedOakWidth = 53; // Default fallback
   if (oakPaneId !== "") {
     const config = loadOakConfig();
+    lastSavedOakWidth = config.oakWidth;
     try {
       execSync(`tmux resize-pane -t ${oakPaneId} -x ${config.oakWidth}`);
       debug(`Initialized Oak width to ${config.oakWidth} columns`);
@@ -611,6 +614,25 @@ async function main() {
       debug("Setting up projects auto-refresh (2s interval)");
       projectsRefreshInterval = setInterval(() => {
         debug("Auto-refreshing projects list...");
+
+        // Check if Oak width changed and save to config if needed
+        if (oakPaneId !== "") {
+          try {
+            const currentOakWidth = parseInt(
+              execSync(`tmux display-message -p -t ${oakPaneId} '#{pane_width}'`, {
+                encoding: "utf-8",
+              }).trim()
+            );
+            
+            if (currentOakWidth !== lastSavedOakWidth) {
+              debug(`Oak width changed: ${lastSavedOakWidth} -> ${currentOakWidth}, saving to config`);
+              saveOakConfig({ oakWidth: currentOakWidth });
+              lastSavedOakWidth = currentOakWidth;
+            }
+          } catch (err) {
+            debug("Error checking Oak width:", err);
+          }
+        }
 
         // Sync pane state from tmux (both current session and oak-bg)
         const state = getGlobalState();

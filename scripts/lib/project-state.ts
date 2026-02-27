@@ -28,6 +28,7 @@ export interface PaneState {
   windowId: string; // tmux window ID (e.g., "@1")
   sessionName: string; // tmux session name (e.g., "oak-bg" or current session)
   currentPath: string; // Current working directory of the pane
+  currentCommand: string; // Currently running command (e.g., "zsh", "node", "vim")
   createdAt: number; // Timestamp when pane was first tracked
   isBackground: boolean; // Whether pane is in oak-bg session
 }
@@ -75,13 +76,15 @@ export interface OakProjectsState {
 function isPaneState(value: unknown): value is PaneState {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
+  // currentCommand is optional for backward compatibility with old state files
   return (
     typeof v.paneId === "string" &&
     typeof v.windowId === "string" &&
     typeof v.sessionName === "string" &&
     typeof v.currentPath === "string" &&
     typeof v.createdAt === "number" &&
-    typeof v.isBackground === "boolean"
+    typeof v.isBackground === "boolean" &&
+    (v.currentCommand === undefined || typeof v.currentCommand === "string")
   );
 }
 
@@ -375,6 +378,7 @@ export interface TmuxPaneInfo {
   windowId: string;
   sessionName: string;
   currentPath: string;
+  currentCommand: string;
 }
 
 /**
@@ -387,15 +391,15 @@ export function getTmuxPanesInSession(sessionName: string): TmuxPaneInfo[] {
     
     // Use -s flag to list all panes in the session (not -a which lists all sessions)
     const output = execSync(
-      `tmux list-panes -s -t ${sessionName} -F '#{pane_id}|#{window_id}|#{session_name}|#{pane_current_path}'`,
+      `tmux list-panes -s -t ${sessionName} -F '#{pane_id}|#{window_id}|#{session_name}|#{pane_current_path}|#{pane_current_command}'`,
       { encoding: "utf-8", stdio: "pipe" }
     ).trim();
 
     if (!output) return [];
 
     return output.split("\n").map((line) => {
-      const [paneId, windowId, session, currentPath] = line.split("|");
-      return { paneId, windowId, sessionName: session, currentPath };
+      const [paneId, windowId, session, currentPath, currentCommand] = line.split("|");
+      return { paneId, windowId, sessionName: session, currentPath, currentCommand: currentCommand ?? "zsh" };
     });
   } catch {
     return [];
@@ -408,7 +412,7 @@ export function getTmuxPanesInSession(sessionName: string): TmuxPaneInfo[] {
 export function getCurrentSessionPanes(excludePaneId?: string): TmuxPaneInfo[] {
   try {
     const output = execSync(
-      "tmux list-panes -F '#{pane_id}|#{window_id}|#{session_name}|#{pane_current_path}'",
+      "tmux list-panes -F '#{pane_id}|#{window_id}|#{session_name}|#{pane_current_path}|#{pane_current_command}'",
       { encoding: "utf-8" }
     ).trim();
 
@@ -417,8 +421,8 @@ export function getCurrentSessionPanes(excludePaneId?: string): TmuxPaneInfo[] {
     return output
       .split("\n")
       .map((line) => {
-        const [paneId, windowId, sessionName, currentPath] = line.split("|");
-        return { paneId, windowId, sessionName, currentPath };
+        const [paneId, windowId, sessionName, currentPath, currentCommand] = line.split("|");
+        return { paneId, windowId, sessionName, currentPath, currentCommand: currentCommand ?? "zsh" };
       })
       .filter((p) => p.paneId !== excludePaneId);
   } catch {
@@ -542,16 +546,18 @@ export function syncProjectPanes(
             windowId: paneInfo.windowId,
             sessionName: paneInfo.sessionName,
             currentPath: panePath,
+            currentCommand: paneInfo.currentCommand,
             createdAt: Date.now(),
             isBackground,
           });
           debug(`Added pane ${paneInfo.paneId} to main worktree ${projectPath}`);
           changed = true;
         } else {
-          // Update existing pane if path changed
-          if (existingPane.currentPath !== panePath || existingPane.sessionName !== paneInfo.sessionName) {
+          // Update existing pane if path or command changed
+          if (existingPane.currentPath !== panePath || existingPane.sessionName !== paneInfo.sessionName || existingPane.currentCommand !== paneInfo.currentCommand) {
             existingPane.currentPath = panePath;
             existingPane.sessionName = paneInfo.sessionName;
+            existingPane.currentCommand = paneInfo.currentCommand;
             existingPane.isBackground = paneInfo.sessionName === "oak-bg";
             changed = true;
           }
@@ -572,16 +578,18 @@ export function syncProjectPanes(
         windowId: paneInfo.windowId,
         sessionName: paneInfo.sessionName,
         currentPath: panePath,
+        currentCommand: paneInfo.currentCommand,
         createdAt: Date.now(),
         isBackground,
       });
       debug(`Added pane ${paneInfo.paneId} to worktree ${wtPath}`);
       changed = true;
     } else {
-      // Update existing pane if path or session changed
-      if (existingPane.currentPath !== panePath || existingPane.sessionName !== paneInfo.sessionName) {
+      // Update existing pane if path, session or command changed
+      if (existingPane.currentPath !== panePath || existingPane.sessionName !== paneInfo.sessionName || existingPane.currentCommand !== paneInfo.currentCommand) {
         existingPane.currentPath = panePath;
         existingPane.sessionName = paneInfo.sessionName;
+        existingPane.currentCommand = paneInfo.currentCommand;
         existingPane.isBackground = paneInfo.sessionName === "oak-bg";
         changed = true;
       }
@@ -1227,6 +1235,7 @@ export function createNewPaneForWorktree(
   oakPaneId: string
 ): { success: boolean; newPaneId?: string; movedToBackgroundPaneId?: string } {
   debug(`Creating new pane for worktree: ${worktreePath}`);
+  debug(`Oak pane ID: ${oakPaneId}`);
 
   try {
     // Get current left pane (the one to swap out)
@@ -1249,6 +1258,7 @@ export function createNewPaneForWorktree(
 
     // Find the leftmost pane (not oak pane)
     const otherPanes = panes.filter((p) => p.id !== oakPaneId);
+    debug(`Other panes (excluding ${oakPaneId}): ${otherPanes.map(p => p.id).join(", ")}`);
 
     if (otherPanes.length === 0) {
       // No existing left pane - just create a new one

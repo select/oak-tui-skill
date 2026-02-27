@@ -1011,19 +1011,55 @@ async function main() {
             }
           }
         }
-      } else if (keyName === "return" && key.ctrl) {
-        // Ctrl+Enter: Create new pane for worktree
-        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
-        if (item?.type === "worktree" && item.worktreePath) {
-          createNewPaneForWorktree(item.worktreePath, oakPaneId);
-          updateContent();
+      } else if (keyName === "return") {
+        // Check for Ctrl+Enter first
+        if (key.ctrl) {
+          // Ctrl+Enter: Create new pane for worktree
+          const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+          debug(`Ctrl+Enter pressed, item type: ${item?.type}`);
+          if (item?.type === "worktree" && item.worktreePath) {
+            debug(`Creating new pane for worktree: ${item.worktreePath}`);
+            createNewPaneForWorktree(item.worktreePath, oakPaneId);
+            updateContent();
+          }
+        } else {
+          // Plain Enter: expand/collapse or bring pane to front
+          const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+          if (item) {
+            if (item.type === "project") {
+              // Toggle project expansion
+              if (expandedProjects.has(item.projectPath)) {
+                expandedProjects.delete(item.projectPath);
+              } else {
+                expandedProjects.add(item.projectPath);
+              }
+              updateContent();
+            } else if (item.type === "worktree" && item.worktreePath) {
+              // Worktree: only toggle expand/collapse (use ctrl+enter to create pane)
+              if (expandedWorktrees.has(item.worktreePath)) {
+                expandedWorktrees.delete(item.worktreePath);
+              } else {
+                expandedWorktrees.add(item.worktreePath);
+              }
+              updateContent();
+            } else if (item.type === "pane" && item.paneId) {
+              // Pane: bring to foreground only if background
+              const project = state.projects[item.projectPath];
+              const wt = item.worktreePath ? project?.worktrees[item.worktreePath] : null;
+              const pane = wt?.panes.find((p) => p.paneId === item.paneId);
+              if (pane?.isBackground) {
+                bringPaneToForeground(item.paneId, oakPaneId);
+                updateContent();
+              }
+              // Do nothing if pane is already in front
+            }
+          }
         }
-      } else if (keyName === "space" || keyName === "return") {
-        // Select/activate the current item
+      } else if (keyName === "space") {
+        // Space: same as plain Enter
         const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
         if (item) {
           if (item.type === "project") {
-            // Toggle project expansion
             if (expandedProjects.has(item.projectPath)) {
               expandedProjects.delete(item.projectPath);
             } else {
@@ -1031,24 +1067,13 @@ async function main() {
             }
             updateContent();
           } else if (item.type === "worktree" && item.worktreePath) {
-            // Worktree: toggle expand if has panes, otherwise create new pane
-            const project = state.projects[item.projectPath];
-            const wt = project?.worktrees[item.worktreePath];
-            if (wt && wt.panes.length > 0) {
-              // Toggle pane visibility
-              if (expandedWorktrees.has(item.worktreePath)) {
-                expandedWorktrees.delete(item.worktreePath);
-              } else {
-                expandedWorktrees.add(item.worktreePath);
-              }
-              updateContent();
+            if (expandedWorktrees.has(item.worktreePath)) {
+              expandedWorktrees.delete(item.worktreePath);
             } else {
-              // Create new pane
-              createNewPaneForWorktree(item.worktreePath, oakPaneId);
-              updateContent();
+              expandedWorktrees.add(item.worktreePath);
             }
+            updateContent();
           } else if (item.type === "pane" && item.paneId) {
-            // Pane: bring to foreground if background
             const project = state.projects[item.projectPath];
             const wt = item.worktreePath ? project?.worktrees[item.worktreePath] : null;
             const pane = wt?.panes.find((p) => p.paneId === item.paneId);

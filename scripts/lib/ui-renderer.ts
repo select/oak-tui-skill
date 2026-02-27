@@ -967,14 +967,15 @@ export function renderProjectsFromState(
               fg: paneIconColor,
             });
 
-            // Show session:window for background panes, or just "active" for the visible fg pane
+            // Show current command and location info
+            const paneCommand = pane.currentCommand ?? "zsh";
             const paneLabel = pane.isBackground
               ? `${pane.sessionName}:${pane.windowId}`
               : "active";
 
             const paneText = new TextRenderable(renderer, {
               id: `pane-text-${renderCounter}-${i}-${wtIdx}-${paneIdx}`,
-              content: `${pane.paneId} (${paneLabel})`,
+              content: `${paneCommand} ${pane.paneId} (${paneLabel})`,
               fg: "#888888",
             });
 

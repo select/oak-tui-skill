@@ -59,8 +59,13 @@ export function renderConfirmDeletePopup(
   // Clear previous modal content
   clearModalContent(modal);
 
-  // Configure modal container styling
-  modal.container.width = 60;
+  // Configure modal container styling - use maxWidth for responsive behavior
+  // Allow terminal width minus some margin, but cap at reasonable size
+  const terminalWidth = process.stdout.columns ?? 80;
+  const maxModalWidth = Math.min(60, terminalWidth - 4); // At least 2 chars margin on each side
+  const contentWidth = maxModalWidth - 4; // Account for padding (2 on each side)
+
+  modal.container.maxWidth = maxModalWidth;
   modal.container.borderColor = theme.colors.error;
   modal.container.paddingTop = 1;
   modal.container.paddingBottom = 1;
@@ -88,16 +93,18 @@ export function renderConfirmDeletePopup(
   // Separator
   const sep1 = new TextRenderable(renderer, {
     id: `confirm-sep1-${renderCounter}`,
-    content: "─".repeat(56),
+    content: "─".repeat(Math.max(1, contentWidth)),
     fg: theme.colors.border,
   });
   container.add(sep1);
 
-  // Warning message
+  // Warning message (wrap text for narrow terminals)
+  const warningMsg = "This will remove the project from your recent list.";
   const warningText = new TextRenderable(renderer, {
     id: `confirm-warning-${renderCounter}`,
-    content: "This will remove the project from your recent list.",
+    content: warningMsg,
     fg: theme.colors.textMuted,
+    maxWidth: contentWidth,
   });
   container.add(warningText);
 
@@ -109,10 +116,22 @@ export function renderConfirmDeletePopup(
   });
   container.add(projectText);
 
-  // Project path
+  // Project path (truncate if too long to fit in modal)
+  const pathPrefix = "Path: ";
+  const maxPathLength = contentWidth - pathPrefix.length;
+  let displayPath = state.projectPath;
+  if (displayPath.length > maxPathLength && maxPathLength > 10) {
+    // Truncate with ellipsis: show start and end of path
+    const ellipsis = "...";
+    const keepChars = maxPathLength - ellipsis.length;
+    const startChars = Math.floor(keepChars * 0.4);
+    const endChars = keepChars - startChars;
+    displayPath = displayPath.slice(0, startChars) + ellipsis + displayPath.slice(-endChars);
+  }
+  
   const pathText = new TextRenderable(renderer, {
     id: `confirm-path-${renderCounter}`,
-    content: `Path: ${state.projectPath}`,
+    content: `${pathPrefix}${displayPath}`,
     fg: theme.colors.textMuted,
   });
   container.add(pathText);
@@ -169,15 +188,19 @@ export function renderConfirmDeletePopup(
   // Separator
   const sep2 = new TextRenderable(renderer, {
     id: `confirm-sep2-${renderCounter}`,
-    content: "─".repeat(56),
+    content: "─".repeat(Math.max(1, contentWidth)),
     fg: theme.colors.border,
   });
   container.add(sep2);
 
-  // Footer hint
+  // Footer hint (adaptive text for narrow terminals)
+  const fullHint = "Press [d] to delete, [c] or Escape to cancel";
+  const shortHint = "[d] delete / [c] cancel";
+  const footerText = contentWidth >= fullHint.length ? fullHint : shortHint;
+  
   const footerHint = new TextRenderable(renderer, {
     id: `confirm-footer-${renderCounter}`,
-    content: "Press [d] to delete, [c] or Escape to cancel",
+    content: footerText,
     fg: theme.colors.textMuted,
   });
   container.add(footerHint);

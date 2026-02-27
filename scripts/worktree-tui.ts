@@ -25,7 +25,7 @@ function isKeyInputHandler(value: unknown): value is KeyInputHandler {
   );
 }
 
-import type { TabId, ProjectNode } from "./lib/types";
+import type { TabId } from "./lib/types";
 import { updateFooter } from "./lib/footer";
 import {
   checkExistingInstance,
@@ -59,19 +59,19 @@ import {
   hideConfirmDelete,
   type ConfirmDeleteState,
 } from "./components/confirm-popup";
+import { hideModal } from "./components/modal";
 import {
   createUIComponents,
-  renderProjects,
+  renderProjectsFromState,
   renderFiles,
   renderThemes,
   renderBoard,
   clearContent,
   updateUIColors,
-  getSelectableCount,
-  getItemAtIndex,
+  getStateSelectableCount,
+  getStateItemAtIndex,
   getFilesSelectableCount,
   getFileAtIndex,
-  filterProjects,
   filterBoardIssues,
 } from "./lib/ui-renderer";
 import {
@@ -88,8 +88,23 @@ import {
   getPrevSectionStart,
 } from "./lib/beads-manager";
 import type { GroupedIssues, ReadonlyBeadsIssue } from "./lib/types";
-import { initTmuxManager, setDebugFn } from "./lib/tmux-manager";
+import { initTmuxManager, setDebugFn, getTmuxPaneId } from "./lib/tmux-manager";
 import { createDebugLogger } from "./lib/debug-utils";
+import {
+  initProjectState,
+  getGlobalState,
+  saveGlobalState,
+  syncAllProjectPanes,
+  getCurrentActiveWorktreePath,
+  addOrUpdateProject,
+  bringPaneToForeground,
+  createNewPaneForWorktree,
+  getLeftPaneId,
+  getWorktreesWithBackgroundPanes,
+  addPaneToMultiView,
+  getVisibleForegroundPanes,
+  cycleToNextVisiblePane,
+} from "./lib/project-state";
 import {
   existsSync,
   mkdirSync,
@@ -158,6 +173,9 @@ setDebugFn((...args: readonly unknown[]) => {
 
 // Initialize tmux manager (load background panes)
 initTmuxManager();
+
+// Initialize project state (YAML tracking)
+initProjectState();
 
 // Helper type guard for Error
 function isError(value: unknown): value is Error {
@@ -294,9 +312,17 @@ async function main() {
   };
   let boardRefreshInterval: ReturnType<typeof setInterval> | null = null;
   let projectsRefreshInterval: ReturnType<typeof setInterval> | null = null;
-  let activeWorktreePath: string | undefined; // Track active worktree for Board tab
-  let filteredProjectsCache: ProjectNode[] | null = null; // Cache filtered projects
-  let lastProjectsSearchQuery = ""; // Track last search query to detect changes
+  let activeWorktreePath: string | null = null; // Track active worktree for Board tab
+  
+  // Initialize expandedWorktrees with worktrees that have background panes
+  // Also expand their parent projects
+  const initialBgPanes = getWorktreesWithBackgroundPanes(getGlobalState());
+  let expandedWorktrees = new Set<string>(initialBgPanes.worktrees);
+  // Also expand projects that contain background panes
+  for (const projectPath of initialBgPanes.projects) {
+    expandedProjects.add(projectPath);
+  }
+  debug("Auto-expanded worktrees with background panes:", expandedWorktrees.size);
   // Issue popup state
   let issuePopupState: IssuePopupState = {
     issue: null,
@@ -307,27 +333,12 @@ async function main() {
   let confirmDeleteState: ConfirmDeleteState =
     createInitialConfirmDeleteState();
 
-  // Worktree switch handler - used by both keyboard and mouse
-  const handleWorktreeSwitch = (worktreePath: string, projectPath: string) => {
-    void import("./lib/tmux-manager").then(
-      ({
-        switchToWorktree,
-      }: Readonly<{
-        switchToWorktree: (path: string, projectPath: string) => void;
-      }>) => {
-        switchToWorktree(worktreePath, projectPath);
-        // Update active worktree path for Board tab
-        activeWorktreePath = worktreePath;
-        debug(`Active worktree set to: ${activeWorktreePath}`);
-        // Refresh board if it's the active tab
-        if (activeTab === "board") {
-          debug("Board refresh triggered by worktree switch");
-          boardIssues = fetchAndGroupIssues(activeWorktreePath);
-        }
-        updateContent();
-      },
-    );
-  };
+  // Get oak pane ID for tmux operations
+  const oakPaneId = getTmuxPaneId() ?? "";
+  debug("Oak pane ID:", oakPaneId);
+
+  // Helper to get the current left pane ID
+  const getLeftPane = () => getLeftPaneId(oakPaneId);
 
   // Initialize top-level folders as expanded
   for (const node of fileTree) {
@@ -453,6 +464,24 @@ async function main() {
 
   // Helper to update footer with current state
   function refreshFooter() {
+    // Determine selected item type for context-sensitive hints
+    let selectedItemType: "project" | "worktree" | "pane" | null = null;
+    let selectedItemIsBackground: boolean | undefined = undefined;
+    if (activeTab === "projects") {
+      const state = getGlobalState();
+      const leftPane = getLeftPane();
+      const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+      debug(`refreshFooter: selectedIndex=${selectedIndex}, item=${JSON.stringify(item)}`);
+      if (item != null) {
+        selectedItemType = item.type;
+        selectedItemIsBackground = item.isBackground;
+      }
+    }
+
+    // Get visible foreground pane count for context-aware hints
+    const oakPaneId = getTmuxPaneId();
+    const visibleForegroundPaneCount = oakPaneId != null ? getVisibleForegroundPanes(oakPaneId).length : 0;
+
     updateFooter(
       ui.footer,
       activeTab,
@@ -465,6 +494,9 @@ async function main() {
         searchQuery,
       },
       confirmDeleteState,
+      selectedItemType,
+      selectedItemIsBackground,
+      visibleForegroundPaneCount,
     );
   }
 
@@ -513,7 +545,7 @@ async function main() {
     });
 
     if (activeTab === "projects") {
-      // Show search box when in search mode
+      // Show search box when in search mode (TODO: implement search for state-based view)
       if (projectsSearchMode || projectsSearchQuery !== "") {
         ui.searchBoxOuter.visible = true;
         ui.searchInput.content = projectsSearchQuery;
@@ -521,86 +553,90 @@ async function main() {
         ui.searchCursor.visible = projectsSearchMode;
       }
 
-      // Only re-filter if search query changed or cache is empty
-      if (
-        filteredProjectsCache === null ||
-        lastProjectsSearchQuery !== projectsSearchQuery
-      ) {
-        filteredProjectsCache = filterProjects(
-          projectNodes,
-          projectsSearchQuery,
-        );
-        lastProjectsSearchQuery = projectsSearchQuery;
-      }
+      // Get current state
+      const state = getGlobalState();
 
-      // Show confirm delete popup if visible
+      // Always render the projects content (modal overlays on top)
+      renderProjectsFromState(
+        renderer,
+        ui.contentScroll,
+        state,
+        renderCounter,
+        expandedProjects,
+        expandedWorktrees,
+        updateContent,
+        selectedIndex,
+        activeWorktreePath,
+        oakPaneId,
+        getLeftPane(),
+        DEBUG,
+      );
+
+      // Show confirm delete popup if visible (overlays on top of content)
       if (confirmDeleteState.visible) {
         renderConfirmDeletePopup(
           renderer,
-          ui.contentScroll,
+          ui.modal,
           confirmDeleteState,
           currentTheme(),
           renderCounter,
+          () => {
+            // Click outside to close
+            hideConfirmDelete(confirmDeleteState);
+            hideModal(ui.modal);
+            updateContent();
+          },
         );
       } else {
-        renderProjects(
-          renderer,
-          ui.contentScroll,
-          filteredProjectsCache,
-          renderCounter,
-          expandedProjects,
-          updateContent,
-          selectedIndex,
-          activeWorktreePath,
-          handleWorktreeSwitch,
-          DEBUG,
-        );
+        // Ensure modal is hidden when no popup is visible
+        hideModal(ui.modal);
       }
 
-      // Set up auto-refresh every 5 seconds
-      debug("Setting up projects auto-refresh (5s interval)");
+      // Set up auto-refresh every 2 seconds (faster for better pane detection)
+      debug("Setting up projects auto-refresh (2s interval)");
       projectsRefreshInterval = setInterval(() => {
         debug("Auto-refreshing projects list...");
-        // Rebuild project nodes to detect new worktrees
-        const mainRepoPath = getMainRepoPath(gitRoot);
-        const refreshedProjectNodes = buildProjectNodes(
-          recentProjects,
-          mainRepoPath ?? gitRoot,
-        );
 
-        // Preserve expand states from existing projectNodes
-        const expandStates = new Map(
-          projectNodes.map((node) => [node.path, node.isExpanded]),
-        );
-        for (const node of refreshedProjectNodes) {
-          const savedState = expandStates.get(node.path);
-          if (savedState !== undefined) {
-            node.isExpanded = savedState;
-          }
+        // Sync pane state from tmux (both current session and oak-bg)
+        const state = getGlobalState();
+        const changed = syncAllProjectPanes(state, oakPaneId);
+        if (changed) {
+          saveGlobalState();
+          debug("Project pane state synced and saved");
         }
 
-        projectNodes = refreshedProjectNodes;
+        // Update activeWorktreePath from the current left pane
+        const currentPath = getCurrentActiveWorktreePath(oakPaneId);
+        if (currentPath !== activeWorktreePath) {
+          activeWorktreePath = currentPath;
+          debug(`Updated activeWorktreePath to: ${activeWorktreePath}`);
+        }
 
-        // Re-filter and re-render
-        const refreshedFiltered = filterProjects(
-          projectNodes,
-          projectsSearchQuery,
-        );
+        // Also ensure all recent projects are in the state
+        for (const rp of recentProjects) {
+          addOrUpdateProject(state, rp.path);
+        }
+        saveGlobalState();
+
+        // Re-render
         clearContent(ui.contentScroll);
         renderCounter++;
-        renderProjects(
+        renderProjectsFromState(
           renderer,
           ui.contentScroll,
-          refreshedFiltered,
+          state,
           renderCounter,
           expandedProjects,
+          expandedWorktrees,
           updateContent,
           selectedIndex,
           activeWorktreePath,
-          handleWorktreeSwitch,
+          oakPaneId,
+          getLeftPane(),
+          DEBUG,
         );
         renderer.requestRender();
-      }, 5000);
+      }, 2000);
     } else if (activeTab === "files") {
       // Show search box only when in search mode
       if (searchMode || searchQuery !== "") {
@@ -630,6 +666,7 @@ async function main() {
         },
         filesSelectedIndex,
         DEBUG,
+        gitRoot,
       );
     } else if (activeTab === "board") {
       // Show search box when in search mode
@@ -641,62 +678,73 @@ async function main() {
       }
 
       // Fetch fresh issues and filter (use active worktree path if set)
-      boardIssues = fetchAndGroupIssues(activeWorktreePath);
+      boardIssues = fetchAndGroupIssues(activeWorktreePath ?? undefined);
       const filteredIssues = filterBoardIssues(boardIssues, boardSearchQuery);
 
-      // Show confirm delete popup if visible
+      // Always render the board content (modal overlays on top)
+      renderBoard(
+        renderer,
+        ui.contentScroll,
+        filteredIssues,
+        renderCounter,
+        selectedIndex,
+        (issue: ReadonlyBeadsIssue) => {
+          debug("Selected issue:", issue.id);
+        },
+        (issue: ReadonlyBeadsIssue) => {
+          // Double-click opens popup - defer to avoid crash during mouse event
+          setTimeout(() => {
+            debug("Opening issue popup:", issue.id);
+            issuePopupState.visible = true;
+            issuePopupState.issue = issue;
+            issuePopupState.scrollOffset = 0;
+            updateContent();
+          }, 0);
+        },
+        DEBUG,
+      );
+
+      // Show confirm delete popup if visible (overlays on top of content)
       if (confirmDeleteState.visible) {
         renderConfirmDeletePopup(
           renderer,
-          ui.contentScroll,
+          ui.modal,
           confirmDeleteState,
           currentTheme(),
           renderCounter,
+          () => {
+            // Click outside to close
+            hideConfirmDelete(confirmDeleteState);
+            hideModal(ui.modal);
+            updateContent();
+          },
         );
       }
-      // Show issue popup if visible, otherwise show board
+      // Show issue popup if visible (overlays on top of content)
       else if (issuePopupState.visible && issuePopupState.issue) {
         renderIssuePopup(
           renderer,
-          ui.contentScroll,
+          ui.modal,
           issuePopupState,
           currentTheme(),
           renderCounter,
           () => {
             setTimeout(() => {
               hidePopup(issuePopupState);
+              hideModal(ui.modal);
               updateContent();
             }, 0);
           },
         );
       } else {
-        renderBoard(
-          renderer,
-          ui.contentScroll,
-          filteredIssues,
-          renderCounter,
-          selectedIndex,
-          (issue: ReadonlyBeadsIssue) => {
-            debug("Selected issue:", issue.id);
-          },
-          (issue: ReadonlyBeadsIssue) => {
-            // Double-click opens popup - defer to avoid crash during mouse event
-            setTimeout(() => {
-              debug("Opening issue popup:", issue.id);
-              issuePopupState.visible = true;
-              issuePopupState.issue = issue;
-              issuePopupState.scrollOffset = 0;
-              updateContent();
-            }, 0);
-          },
-          DEBUG,
-        );
+        // Ensure modal is hidden when no popup is visible
+        hideModal(ui.modal);
       }
 
       // Set up auto-refresh every 5 seconds (skip if popup is visible)
       boardRefreshInterval = setInterval(() => {
         if (issuePopupState.visible) return; // Don't refresh while popup is open
-        boardIssues = fetchAndGroupIssues(activeWorktreePath);
+        boardIssues = fetchAndGroupIssues(activeWorktreePath ?? undefined);
         const refreshedFiltered = filterBoardIssues(
           boardIssues,
           boardSearchQuery,
@@ -919,11 +967,13 @@ async function main() {
               debug("Removed project from recent list:", projectPath);
               // Reload project list
               recentProjects = loadRecentProjects();
-              projectNodes = buildProjectNodes(recentProjects, gitRoot);
               // Adjust selected index if needed
-              const newTotal = getSelectableCount(
-                projectNodes,
+              const state = getGlobalState();
+              const newTotal = getStateSelectableCount(
+                state,
                 expandedProjects,
+                expandedWorktrees,
+                getLeftPane(),
               );
               if (selectedIndex >= newTotal) {
                 selectedIndex = Math.max(0, newTotal - 1);
@@ -945,13 +995,11 @@ async function main() {
         return;
       }
 
-      // Filter projects by search query
-      const filteredProjects = filterProjects(
-        projectNodes,
-        projectsSearchQuery,
-      );
-      // Navigation with arrow keys and vim keys
-      const totalItems = getSelectableCount(filteredProjects, expandedProjects);
+      // Get state for navigation
+      const state = getGlobalState();
+      const leftPane = getLeftPane();
+      const totalItems = getStateSelectableCount(state, expandedProjects, expandedWorktrees, leftPane);
+
       if (keyName === "/" || keyName === "slash") {
         projectsSearchMode = true;
         updateContent();
@@ -959,92 +1007,171 @@ async function main() {
       } else if (keyName === "up" || keyName === "k") {
         selectedIndex = Math.max(0, selectedIndex - 1);
         updateContent();
+        refreshFooter();
       } else if (keyName === "down" || keyName === "j") {
         selectedIndex = Math.min(totalItems - 1, selectedIndex + 1);
         updateContent();
+        refreshFooter();
       } else if (keyName === "left" || keyName === "h") {
-        // Collapse/fold the current item or parent
-        const item = getItemAtIndex(
-          filteredProjects,
-          expandedProjects,
-          selectedIndex,
-        );
+        // Collapse/fold the current item
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
         if (item) {
-          const selectedProject = filteredProjects[item.projectIndex];
           if (item.type === "project") {
             // On a project - collapse it if expanded
-            if (expandedProjects.has(selectedProject.path)) {
-              expandedProjects.delete(selectedProject.path);
+            if (expandedProjects.has(item.projectPath)) {
+              expandedProjects.delete(item.projectPath);
               updateContent();
             }
-          } else {
-            // On a worktree - collapse parent project and move selection to it
-            if (expandedProjects.has(selectedProject.path)) {
-              expandedProjects.delete(selectedProject.path);
-              // Calculate the flat index of the parent project
-              let parentFlatIndex = 0;
-              for (let i = 0; i < item.projectIndex; i++) {
-                parentFlatIndex++; // Count the project header
-                if (expandedProjects.has(filteredProjects[i].path)) {
-                  parentFlatIndex += filteredProjects[i].worktrees.length;
-                }
-              }
-              selectedIndex = parentFlatIndex;
+          } else if (item.type === "worktree" && item.worktreePath != null && item.worktreePath !== "") {
+            // On a worktree - collapse it if expanded (has panes showing)
+            if (expandedWorktrees.has(item.worktreePath)) {
+              expandedWorktrees.delete(item.worktreePath);
+              updateContent();
+            } else {
+              // Collapse parent project
+              expandedProjects.delete(item.projectPath);
               updateContent();
             }
+          } else if (item.type === "pane" && item.worktreePath != null && item.worktreePath !== "") {
+            // On a pane - collapse parent worktree
+            expandedWorktrees.delete(item.worktreePath);
+            updateContent();
           }
         }
       } else if (keyName === "right" || keyName === "l") {
         // Expand/unfold the current item
-        const item = getItemAtIndex(
-          filteredProjects,
-          expandedProjects,
-          selectedIndex,
-        );
-        if (item?.type === "project") {
-          const selectedProject = filteredProjects[item.projectIndex];
-          if (!expandedProjects.has(selectedProject.path)) {
-            expandedProjects.add(selectedProject.path);
-            updateContent();
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        if (item) {
+          if (item.type === "project") {
+            // Expand project
+            if (!expandedProjects.has(item.projectPath)) {
+              expandedProjects.add(item.projectPath);
+              updateContent();
+            }
+          } else if (item.type === "worktree" && item.worktreePath != null && item.worktreePath !== "") {
+            // Expand worktree to show panes
+            // item comes from state, so projectPath/worktreePath are guaranteed valid
+            const wt = state.projects[item.projectPath].worktrees[item.worktreePath];
+            if (wt.panes.length > 0 && !expandedWorktrees.has(item.worktreePath)) {
+              expandedWorktrees.add(item.worktreePath);
+              updateContent();
+            }
           }
         }
-      } else if (keyName === "space" || keyName === "return") {
-        // Select/activate the current item
-        const item = getItemAtIndex(
-          filteredProjects,
-          expandedProjects,
-          selectedIndex,
-        );
+      } else if (keyName === "return") {
+        // Enter: expand/collapse or bring pane to front
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
         if (item) {
           if (item.type === "project") {
             // Toggle project expansion
-            const selectedProject = filteredProjects[item.projectIndex];
-            if (expandedProjects.has(selectedProject.path)) {
-              expandedProjects.delete(selectedProject.path);
+            if (expandedProjects.has(item.projectPath)) {
+              expandedProjects.delete(item.projectPath);
             } else {
-              expandedProjects.add(selectedProject.path);
+              expandedProjects.add(item.projectPath);
             }
             updateContent();
-          } else if (typeof item.worktreeIndex === "number") {
-            // item.type must be "worktree" at this point
-            // Switch to worktree - use filteredProjects for reading data
-            const node = filteredProjects[item.projectIndex];
-            const wt = node.worktrees[item.worktreeIndex];
-            if (wt !== undefined) {
-              handleWorktreeSwitch(wt.path, node.path);
+          } else if (item.type === "worktree" && item.worktreePath != null && item.worktreePath !== "") {
+            // Worktree: only toggle expand/collapse (use 'n' to create pane)
+            if (expandedWorktrees.has(item.worktreePath)) {
+              expandedWorktrees.delete(item.worktreePath);
+            } else {
+              expandedWorktrees.add(item.worktreePath);
+            }
+            updateContent();
+          } else if (item.type === "pane" && item.paneId != null && item.paneId !== "") {
+            // Pane behavior (updated for multi-pane cycling):
+            // - If only one pane visible: bring background pane to front
+            // - If multiple panes visible: cycle focus to next visible pane
+            if (item.projectPath in state.projects && item.worktreePath != null && item.worktreePath !== "" && item.worktreePath in state.projects[item.projectPath].worktrees) {
+              const pane = state.projects[item.projectPath].worktrees[item.worktreePath].panes.find((p) => p.paneId === item.paneId);
+              
+              // Count visible foreground panes
+              const visiblePanes = getVisibleForegroundPanes(oakPaneId);
+              
+              if (pane?.isBackground === true) {
+                // Background pane: bring to foreground (regardless of count)
+                bringPaneToForeground(item.paneId, oakPaneId);
+                updateContent();
+              } else if (visiblePanes.length === 1) {
+                // Only one foreground pane visible: no-op (or could bring a background pane to front)
+                // For now, do nothing to keep it simple
+              } else if (visiblePanes.length > 1) {
+                // Multiple foreground panes visible: cycle focus to next pane
+                cycleToNextVisiblePane(oakPaneId);
+                // No need to update content since we're just changing focus
+              }
+            }
+          }
+        }
+      } else if (keyName === "space") {
+        // Space: same as plain Enter
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        if (item) {
+          if (item.type === "project") {
+            if (expandedProjects.has(item.projectPath)) {
+              expandedProjects.delete(item.projectPath);
+            } else {
+              expandedProjects.add(item.projectPath);
+            }
+            updateContent();
+          } else if (item.type === "worktree" && item.worktreePath != null && item.worktreePath !== "") {
+            if (expandedWorktrees.has(item.worktreePath)) {
+              expandedWorktrees.delete(item.worktreePath);
+            } else {
+              expandedWorktrees.add(item.worktreePath);
+            }
+            updateContent();
+          } else if (item.type === "pane" && item.paneId != null && item.paneId !== "") {
+            // Pane behavior: same as Enter key
+            // - If only one pane visible: bring background pane to front
+            // - If multiple panes visible: cycle focus to next visible pane
+            if (item.projectPath in state.projects && item.worktreePath != null && item.worktreePath !== "" && item.worktreePath in state.projects[item.projectPath].worktrees) {
+              const pane = state.projects[item.projectPath].worktrees[item.worktreePath].panes.find((p) => p.paneId === item.paneId);
+              
+              // Count visible foreground panes
+              const visiblePanes = getVisibleForegroundPanes(oakPaneId);
+              
+              if (pane?.isBackground === true) {
+                // Background pane: bring to foreground (regardless of count)
+                bringPaneToForeground(item.paneId, oakPaneId);
+                updateContent();
+              } else if (visiblePanes.length === 1) {
+                // Only one foreground pane visible: no-op
+              } else if (visiblePanes.length > 1) {
+                // Multiple foreground panes visible: cycle focus to next pane
+                cycleToNextVisiblePane(oakPaneId);
+              }
+            }
+          }
+        }
+      } else if (keyName === "n") {
+        // n: Create new pane for worktree
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        debug(`n key pressed, item type: ${item?.type}`);
+        if (item?.type === "worktree" && item.worktreePath != null && item.worktreePath !== "") {
+          debug(`Creating new pane for worktree: ${item.worktreePath}`);
+          createNewPaneForWorktree(item.worktreePath, oakPaneId);
+          updateContent();
+        }
+      } else if (keyName === "a") {
+        // a: Add/remove pane to/from multi-view
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
+        debug(`a key pressed, item type: ${item?.type}`);
+        if (item?.type === "pane" && item.paneId != null && item.paneId !== "") {
+          if (item.projectPath in state.projects && item.worktreePath != null && item.worktreePath !== "" && item.worktreePath in state.projects[item.projectPath].worktrees) {
+            const pane = state.projects[item.projectPath].worktrees[item.worktreePath].panes.find((p) => p.paneId === item.paneId);
+            if (pane !== undefined) {
+              debug(`Toggle pane ${item.paneId} multi-view: isBackground=${pane.isBackground}`);
+              addPaneToMultiView(item.paneId, pane.isBackground, oakPaneId);
+              updateContent();
             }
           }
         }
       } else if (keyName === "d") {
         // Show confirmation popup for deleting project from recent list
-        const item = getItemAtIndex(
-          filteredProjects,
-          expandedProjects,
-          selectedIndex,
-        );
+        const item = getStateItemAtIndex(state, expandedProjects, expandedWorktrees, selectedIndex, leftPane);
         if (item?.type === "project") {
-          const node = filteredProjects[item.projectIndex];
-          showConfirmDelete(confirmDeleteState, node.path);
+          showConfirmDelete(confirmDeleteState, item.projectPath);
           refreshFooter();
           updateContent();
         }
@@ -1279,8 +1406,8 @@ async function main() {
           }
         }
       }
-    } else if (activeTab === "themes") {
-      // Themes navigation with vim keys and arrow keys
+    } else {
+      // Themes navigation with vim keys and arrow keys (activeTab === "themes")
       const totalThemes = availableThemes().length;
 
       if (keyName === "up" || keyName === "k") {

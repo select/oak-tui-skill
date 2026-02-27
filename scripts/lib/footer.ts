@@ -121,6 +121,9 @@ export function updateFooter(
     searchQuery: string;
   },
   confirmDeleteState?: ConfirmDeleteState,
+  selectedItemType?: "project" | "worktree" | "pane" | null,
+  selectedItemIsBackground?: boolean,
+  visibleForegroundPaneCount?: number,
 ): void {
   let hints: FooterHint[] = [];
 
@@ -177,12 +180,22 @@ export function updateFooter(
     // Default state
     else {
       if (activeTab === "projects") {
-        hints = [
-          { key: "↹", label: ": cycle " },
-          { key: "r", label: ": reload " },
-          { key: "d", label: ": remove " },
-          { key: "/", label: ": search" },
-        ];
+        // Context-sensitive hints based on selected item type
+        hints = [{ key: "↹", label: ": cycle " }, { key: "/", label: ": search " }];
+        if (selectedItemType === "project") {
+          hints.push({ key: "d", label: ": remove" });
+        } else if (selectedItemType === "worktree") {
+          hints.push({ key: "n", label: ": new pane" });
+        } else if (selectedItemType === "pane") {
+          // Show context-aware hint based on whether pane is background or foreground
+          if (selectedItemIsBackground === true) {
+            hints.push({ key: "a", label: ": add to view" });
+          } else if ((visibleForegroundPaneCount ?? 0) > 1) {
+            // Only show "send to bg" if there's more than one foreground pane
+            hints.push({ key: "a", label: ": send to bg" });
+          }
+          hints.push({ key: "↵", label: ": focus" });
+        }
       } else {
         hints = [
           { key: "↹", label: ": cycle " },

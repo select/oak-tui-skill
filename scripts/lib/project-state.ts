@@ -1297,6 +1297,9 @@ export function createNewPaneForWorktree(
         { encoding: "utf-8" }
       ).trim();
 
+      // Return focus to Oak so user can continue navigating
+      execSync(`tmux select-pane -t ${oakPaneId}`);
+
       debug(`Created new pane: ${newPaneId}`);
       return { success: true, newPaneId };
     }
@@ -1338,6 +1341,9 @@ export function createNewPaneForWorktree(
 
     // 3. Restore oak pane width
     execSync(`tmux resize-pane -t ${oakPaneId} -x ${oakPaneWidth}`);
+
+    // 4. Return focus to Oak so user can continue navigating
+    execSync(`tmux select-pane -t ${oakPaneId}`);
 
     debug(`Created new pane ${newPaneId}, moved ${currentLeftPane.id} to background`);
     return { success: true, newPaneId, movedToBackgroundPaneId: currentLeftPane.id };
@@ -1720,6 +1726,9 @@ export function addPaneToMultiView(
       // Validate Oak width is within acceptable bounds (20-40%)
       validateOakWidth(oakPaneId);
       
+      // Return focus to Oak so user can continue navigating
+      execSync(`tmux select-pane -t ${oakPaneId}`);
+      
       // Update state
       const state = getGlobalState();
       const currentSession = getCurrentTmuxSession();
@@ -1837,6 +1846,9 @@ export function relayoutForegroundPanes(oakPaneId: string): { success: boolean }
 
     // Validate Oak width is within acceptable bounds (20-40%)
     validateOakWidth(oakPaneId);
+
+    // Return focus to Oak so user can continue navigating
+    execSync(`tmux select-pane -t ${oakPaneId}`);
 
     return { success: true };
   } catch (err) {

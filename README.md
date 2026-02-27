@@ -22,7 +22,7 @@ A terminal UI for managing git worktrees, built with [Bun](https://bun.sh) and [
 - **Visual worktree management** — Navigate projects and worktrees with keyboard or mouse
 - **Tmux integration** — Track panes per worktree, focus existing or spawn new terminals
 - **File browser** — Explore worktree contents with fuzzy search
-- **Issue tracking** — Built-in Beads integration for local issue management
+- **Issue tracking** — Built-in [Beads](https://github.com/jopearsondesigner/beads) integration for local issue management
 - **Themeable** — 8 built-in themes (Catppuccin, Dracula, Gruvbox, Tokyo Night, and more)
 - **Single instance** — Unix socket ensures only one TUI runs at a time
 
@@ -46,15 +46,17 @@ A terminal UI for managing git worktrees, built with [Bun](https://bun.sh) and [
 
 ### Keyboard Navigation
 
-| Key | Action |
-|-----|--------|
-| `j` / `k` | Navigate up/down |
-| `Enter` | Expand/collapse or focus pane |
-| `n` | New pane (on worktree) |
-| `d` | Remove project |
-| `/` | Search |
-| `Tab` | Cycle tabs |
-| `q` | Quit |
+| Key | Action | Context |
+|-----|--------|---------|
+| `j` / `k` | Navigate ↓/↑ | All tabs |
+| `h` / `l` | Navigate ←/→ (collapse/expand) | All tabs |
+| `Ctrl+←` / `Ctrl+→` | Switch tabs | All tabs |
+| `Enter` | Expand/collapse or focus pane | All tabs |
+| `n` | New pane for worktree | Projects only |
+| `d` | Remove project | Projects only |
+| `/` | Search | Files tab |
+| `Tab` | Cycle tabs (alternative) | All tabs |
+| `q` | Quit | All tabs |
 
 ## Installation
 

@@ -381,6 +381,7 @@ export interface TmuxPaneInfo {
   sessionName: string;
   currentPath: string;
   currentCommand: string;
+  paneTitle?: string;
 }
 
 /**
@@ -393,7 +394,7 @@ export function getTmuxPanesInSession(sessionName: string): TmuxPaneInfo[] {
     
     // Use -s flag to list all panes in the session (not -a which lists all sessions)
     const output = execSync(
-      `tmux list-panes -s -t ${sessionName} -F '#{pane_id}|#{window_id}|#{session_name}|#{pane_current_path}|#{pane_current_command}'`,
+      `tmux list-panes -s -t ${sessionName} -F '#{pane_id}|#{window_id}|#{session_name}|#{pane_current_path}|#{pane_current_command}|#{pane_title}'`,
       { encoding: "utf-8", stdio: "pipe" }
     ).trim();
 
@@ -407,6 +408,7 @@ export function getTmuxPanesInSession(sessionName: string): TmuxPaneInfo[] {
         sessionName: parts[2],
         currentPath: parts[3],
         currentCommand: parts[4] ?? "zsh",
+        paneTitle: parts[5],
       };
     });
   } catch {
@@ -420,7 +422,7 @@ export function getTmuxPanesInSession(sessionName: string): TmuxPaneInfo[] {
 export function getCurrentSessionPanes(excludePaneId?: string): TmuxPaneInfo[] {
   try {
     const output = execSync(
-      "tmux list-panes -F '#{pane_id}|#{window_id}|#{session_name}|#{pane_current_path}|#{pane_current_command}'",
+      "tmux list-panes -F '#{pane_id}|#{window_id}|#{session_name}|#{pane_current_path}|#{pane_current_command}|#{pane_title}'",
       { encoding: "utf-8" }
     ).trim();
 
@@ -436,6 +438,7 @@ export function getCurrentSessionPanes(excludePaneId?: string): TmuxPaneInfo[] {
           sessionName: parts[2],
           currentPath: parts[3],
           currentCommand: parts[4] ?? "zsh",
+          paneTitle: parts[5],
         };
       })
       .filter((p) => p.paneId !== excludePaneId);
@@ -576,6 +579,7 @@ export function syncProjectPanes(
             sessionName: paneInfo.sessionName,
             currentPath: panePath,
             currentCommand: paneInfo.currentCommand,
+            paneTitle: paneInfo.paneTitle,
             createdAt: Date.now(),
             isBackground,
           });
@@ -583,10 +587,11 @@ export function syncProjectPanes(
           changed = true;
         } else {
           // Update existing pane if path or command changed
-          if (existingPane.currentPath !== panePath || existingPane.sessionName !== paneInfo.sessionName || existingPane.currentCommand !== paneInfo.currentCommand) {
+          if (existingPane.currentPath !== panePath || existingPane.sessionName !== paneInfo.sessionName || existingPane.currentCommand !== paneInfo.currentCommand || existingPane.paneTitle !== paneInfo.paneTitle) {
             existingPane.currentPath = panePath;
             existingPane.sessionName = paneInfo.sessionName;
             existingPane.currentCommand = paneInfo.currentCommand;
+            existingPane.paneTitle = paneInfo.paneTitle;
             existingPane.isBackground = paneInfo.sessionName === "oak-bg";
             changed = true;
           }
@@ -608,6 +613,7 @@ export function syncProjectPanes(
         sessionName: paneInfo.sessionName,
         currentPath: panePath,
         currentCommand: paneInfo.currentCommand,
+        paneTitle: paneInfo.paneTitle,
         createdAt: Date.now(),
         isBackground,
       });
@@ -615,10 +621,11 @@ export function syncProjectPanes(
       changed = true;
     } else {
       // Update existing pane if path, session or command changed
-      if (existingPane.currentPath !== panePath || existingPane.sessionName !== paneInfo.sessionName || existingPane.currentCommand !== paneInfo.currentCommand) {
+      if (existingPane.currentPath !== panePath || existingPane.sessionName !== paneInfo.sessionName || existingPane.currentCommand !== paneInfo.currentCommand || existingPane.paneTitle !== paneInfo.paneTitle) {
         existingPane.currentPath = panePath;
         existingPane.sessionName = paneInfo.sessionName;
         existingPane.currentCommand = paneInfo.currentCommand;
+        existingPane.paneTitle = paneInfo.paneTitle;
         existingPane.isBackground = paneInfo.sessionName === "oak-bg";
         changed = true;
       }

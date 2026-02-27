@@ -88,7 +88,7 @@ import {
   getPrevSectionStart,
 } from "./lib/beads-manager";
 import type { GroupedIssues, ReadonlyBeadsIssue } from "./lib/types";
-import { initTmuxManager, setDebugFn, getTmuxPaneId } from "./lib/tmux-manager";
+import { initTmuxManager, setDebugFn, getTmuxPaneId, getTmuxWindowId } from "./lib/tmux-manager";
 import { createDebugLogger } from "./lib/debug-utils";
 import {
   initProjectState,
@@ -570,6 +570,7 @@ async function main() {
         oakPaneId,
         getLeftPane(),
         DEBUG,
+        getTmuxWindowId(),
       );
 
       // Show confirm delete popup if visible (overlays on top of content)
@@ -634,6 +635,7 @@ async function main() {
           oakPaneId,
           getLeftPane(),
           DEBUG,
+          getTmuxWindowId(),
         );
         renderer.requestRender();
       }, 2000);

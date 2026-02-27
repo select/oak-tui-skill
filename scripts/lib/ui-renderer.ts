@@ -727,6 +727,7 @@ export function renderProjectsFromState(
   oakPaneId: string,
   leftPaneId: string | null,
   debug: boolean = false,
+  oakWindowId: string | null = null,
 ): void {
   const projects = getProjectsInConfigOrder(state);
 
@@ -836,16 +837,22 @@ export function renderProjectsFromState(
         const wtIsExpanded = expandedWorktrees.has(wt.path);
 
         // Calculate visible panes to display in the list:
-        // - All background panes (orange ◌)
-        // - All foreground panes (purple ●) when in multi-view
+        // - All background panes (orange ◌) in any window
+        // - All foreground panes (purple ●) in the CURRENT window only
         const visiblePanes = wt.panes.filter((p) => {
           if (p.isBackground) return true;
-          // Show all foreground panes (not just the active one)
+          // Only show foreground panes that are in the same window as Oak
+          if (oakWindowId != null && p.windowId !== oakWindowId) return false;
           return !p.isBackground;
         });
 
-        // Count foreground panes for multi-view indicator
-        const foregroundPanes = wt.panes.filter((p) => !p.isBackground);
+        // Count foreground panes in current window for multi-view indicator
+        const foregroundPanes = wt.panes.filter((p) => {
+          if (p.isBackground) return false;
+          // Only count foreground panes in the current window
+          if (oakWindowId != null && p.windowId !== oakWindowId) return false;
+          return true;
+        });
         const foregroundCount = foregroundPanes.length;
 
         const wtExpandIcon = visiblePanes.length > 0

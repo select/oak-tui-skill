@@ -53,6 +53,20 @@ export function getTmuxPaneId(): string | null {
   }
 }
 
+/**
+ * Get the current tmux window ID where Oak is running
+ */
+export function getTmuxWindowId(): string | null {
+  try {
+    const windowId = execSync("tmux display-message -p '#{window_id}'", {
+      encoding: "utf-8",
+    }).trim();
+    return windowId;
+  } catch {
+    return null;
+  }
+}
+
 interface PaneInfo {
   readonly id: string;
   readonly left: number;

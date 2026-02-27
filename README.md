@@ -61,14 +61,18 @@ A terminal UI for managing git worktrees, built with [Bun](https://bun.sh) and [
 
 ## Installation
 
+This is an [Agent Skill](https://agentskills.io/specification) designed for AI coding agents. To install:
+
 ```bash
-# Clone the repository
-git clone https://github.com/youruser/oak-tui-skill.git
-cd oak-tui-skill
+# Clone into your skills directory with the name 'oak-tree-skill'
+git clone https://github.com/youruser/oak-tui-skill.git ~/.config/opencode/skills/oak-tree-skill
 
 # Install dependencies
+cd ~/.config/opencode/skills/oak-tree-skill
 bun install
 ```
+
+**Note**: The directory name must be `oak-tree-skill` (as specified in `SKILL.md`) for AI agents to discover and load this skill correctly.
 
 ## Usage
 

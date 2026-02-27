@@ -22,7 +22,7 @@ A terminal UI for managing git worktrees, built with [Bun](https://bun.sh) and [
 - **Visual worktree management** — Navigate projects and worktrees with keyboard or mouse
 - **Tmux integration** — Track panes per worktree, focus existing or spawn new terminals
 - **File browser** — Explore worktree contents with fuzzy search
-- **Issue tracking** — Built-in [Beads](https://github.com/jopearsondesigner/beads) integration for local issue management
+- **Issue tracking** — Built-in [Beads](https://github.com/steveyegge/beads) integration for local issue management
 - **Themeable** — 8 built-in themes (Catppuccin, Dracula, Gruvbox, Tokyo Night, and more)
 - **Single instance** — Unix socket ensures only one TUI runs at a time
 

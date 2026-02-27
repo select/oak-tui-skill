@@ -25,21 +25,7 @@ import {
   hasBackgroundPane,
   getCurrentWorktreePath,
 } from "./tmux-manager";
-import {
-  getGlobalState,
-  worktreeHasBackgroundPanes,
-  type OakProjectsState,
-  bringPaneToForeground,
-  createNewPaneForWorktree,
-  getProjectsInConfigOrder,
-  sendPaneToBackground,
-  getVisibleForegroundPanes,
-} from "./project-state";
 import { createFooter, type FooterComponents } from "./footer";
-import {
-  createModalComponents,
-  type ModalComponents,
-} from "../components/modal";
 import { basename } from "node:path";
 import {
   filterFileTree,
@@ -223,7 +209,6 @@ export interface UIComponents {
   searchCursor: TextRenderable;
   searchPlaceholder: TextRenderable;
   footer: FooterComponents;
-  modal: ModalComponents;
 }
 
 export interface RenderState {
@@ -344,22 +329,20 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     flexGrow: 1,
     paddingLeft: 1,
     scrollY: true,
+    verticalScrollbarOptions: {
+      paddingLeft: 1,
+    },
   });
   contentBox.add(contentScroll);
 
   // Create footer
   const footer = createFooter(renderer);
 
-  // Create modal (will be added last to render on top)
-  const modal = createModalComponents(renderer, theme);
-
   titleBox.add(tabBar);
   root.add(titleBox);
   root.add(contentBox);
   root.add(searchBoxOuter);
   root.add(footer.footerBox);
-  // Add modal overlay last so it renders on top of everything
-  root.add(modal.overlay);
 
   return {
     root,
@@ -374,7 +357,6 @@ export function createUIComponents(renderer: CliRenderer): UIComponents {
     searchCursor,
     searchPlaceholder,
     footer,
-    modal,
   };
 }
 
@@ -398,10 +380,6 @@ export function updateUIColors(ui: UIComponents): void {
   if (footerChild instanceof TextRenderable) {
     footerChild.fg = theme.colors.textMuted;
   }
-
-  // Modal
-  ui.modal.container.backgroundColor = theme.colors.backgroundPanel;
-  ui.modal.container.borderColor = theme.colors.border;
 }
 
 // eslint-disable-next-line @typescript-eslint/prefer-readonly-parameter-types -- CliRenderer and ScrollBoxRenderable are mutable external types
@@ -472,7 +450,7 @@ export function renderProjects(
 
     const projectName = new TextRenderable(renderer, {
       id: `project-name-${renderCounter}-${i}`,
-      content: node.name,
+      content: `${node.name}`,
       fg: "#eeeeee",
     });
 
@@ -490,10 +468,9 @@ export function renderProjects(
           } else {
             expandedProjects.add(node.path);
           }
-          // Use setTimeout to defer re-render until after mouse event completes
-          setTimeout(() => {
+          void Promise.resolve().then(() => {
             onUpdate();
-          }, 0);
+          });
         }
       } catch {
         // Ignore mouse handler errors
@@ -529,9 +506,7 @@ export function renderProjects(
         // Check if this worktree is the current active pane (purple circle)
         const isCurrentPane = currentPath === wt.path;
         // Check if this worktree has a background pane (orange dot)
-        // Check both legacy tmux-manager tracking and new YAML state
-        const state = getGlobalState();
-        const hasBgPane = hasBackgroundPane(wt.path) || worktreeHasBackgroundPanes(state, wt.path);
+        const hasBgPane = hasBackgroundPane(wt.path);
 
         // Big purple circle for current active pane, small orange dot for background pane
         let indicator = "";
@@ -578,10 +553,9 @@ export function renderProjects(
             onWorktreeSwitch(wt.path, node.path);
           } else {
             switchToWorktree(wt.path, node.path);
-            // Use setTimeout to defer re-render until after mouse event completes
-            setTimeout(() => {
+            void Promise.resolve().then(() => {
               onUpdate();
-            }, 0);
+            });
           }
         };
 
@@ -597,447 +571,6 @@ export function renderProjects(
 
         wtBox.add(wtNameRow);
         wtBox.add(wtInfo);
-        projectBox.add(wtBox);
-      }
-    }
-
-    contentScroll.add(projectBox);
-  }
-}
-
-// ============================================================================
-// State-based Projects Rendering (from YAML state)
-// ============================================================================
-
-/**
- * Item types in the flattened project list for keyboard navigation
- */
-export type StateProjectItemType = "project" | "worktree" | "pane";
-
-export interface StateProjectItem {
-  type: StateProjectItemType;
-  projectPath: string;
-  worktreePath?: string;
-  paneId?: string;
-  isBackground?: boolean; // For panes: whether the pane is in background session
-}
-
-/**
- * Count selectable items in state-based project view
- */
-export function getStateSelectableCount(
-  state: OakProjectsState,
-  expandedProjects: ReadonlySet<string>,
-  expandedWorktrees: ReadonlySet<string>,
-  leftPaneId: string | null,
-): number {
-  let count = 0;
-  const projects = getProjectsInConfigOrder(state);
-
-  for (const project of projects) {
-    count++; // Project header
-
-    if (expandedProjects.has(project.path)) {
-      const worktrees = Object.values(project.worktrees);
-      for (const wt of worktrees) {
-        count++; // Worktree
-
-        if (expandedWorktrees.has(wt.path)) {
-          // Only count visible panes
-          const visiblePanes = wt.panes.filter((p) => {
-            if (p.isBackground) return true;
-            return p.paneId === leftPaneId;
-          });
-          count += visiblePanes.length;
-        }
-      }
-    }
-  }
-
-  return count;
-}
-
-/**
- * Get item at index in state-based project view
- */
-export function getStateItemAtIndex(
-  state: OakProjectsState,
-  expandedProjects: ReadonlySet<string>,
-  expandedWorktrees: ReadonlySet<string>,
-  index: number,
-  leftPaneId: string | null,
-): StateProjectItem | null {
-  let currentIndex = 0;
-  const projects = getProjectsInConfigOrder(state);
-
-  for (const project of projects) {
-    if (currentIndex === index) {
-      return { type: "project", projectPath: project.path };
-    }
-    currentIndex++;
-
-    if (expandedProjects.has(project.path)) {
-      const worktrees = Object.values(project.worktrees);
-      for (const wt of worktrees) {
-        if (currentIndex === index) {
-          return { type: "worktree", projectPath: project.path, worktreePath: wt.path };
-        }
-        currentIndex++;
-
-        if (expandedWorktrees.has(wt.path)) {
-          // Only iterate visible panes
-          const visiblePanes = wt.panes.filter((p) => {
-            if (p.isBackground) return true;
-            return p.paneId === leftPaneId;
-          });
-
-          for (const pane of visiblePanes) {
-            if (currentIndex === index) {
-              return {
-                type: "pane",
-                projectPath: project.path,
-                worktreePath: wt.path,
-                paneId: pane.paneId,
-                isBackground: pane.isBackground,
-              };
-            }
-            currentIndex++;
-          }
-        }
-      }
-    }
-  }
-
-  return null;
-}
-
-/**
- * Render projects from YAML state with pane hierarchy
- */
-export function renderProjectsFromState(
-  renderer: CliRenderer,
-  contentScroll: ScrollBoxRenderable,
-  state: OakProjectsState,
-  renderCounter: number,
-  expandedProjects: Set<string>,
-  expandedWorktrees: Set<string>,
-  onUpdate: () => void,
-  selectedIndex: number = -1,
-  activeWorktreePath: string | null,
-  oakPaneId: string,
-  leftPaneId: string | null,
-  debug: boolean = false,
-): void {
-  const projects = getProjectsInConfigOrder(state);
-
-  if (projects.length === 0) {
-    const emptyText = new TextRenderable(renderer, {
-      id: `empty-projects-${renderCounter}`,
-      content: "No recent projects",
-      fg: "#808080",
-    });
-    contentScroll.add(emptyText);
-    return;
-  }
-
-  let flatIndex = 0;
-
-  for (let i = 0; i < projects.length; i++) {
-    const project = projects[i];
-    const isExpanded = expandedProjects.has(project.path);
-    const expandIcon = isExpanded ? "\u{25BC}" : "\u{25B6}";
-
-    const projectBox = new BoxRenderable(renderer, {
-      id: `project-${renderCounter}-${i}`,
-      width: "100%",
-      flexDirection: "column",
-      paddingBottom: 1,
-    });
-
-    // Project header
-    const projectIsSelected = selectedIndex === flatIndex;
-    flatIndex++;
-
-    const projectHeader = new BoxRenderable(renderer, {
-      id: `project-header-${renderCounter}-${i}`,
-      width: "100%",
-      flexDirection: "row",
-      backgroundColor: projectIsSelected ? "#3a3a3a" : undefined,
-    });
-
-    const projectHoverHandlers = createHoverHandlers(projectHeader, renderer, projectIsSelected);
-    projectHeader.onMouseOver = projectHoverHandlers.onMouseOver;
-    projectHeader.onMouseOut = projectHoverHandlers.onMouseOut;
-
-    const expandIconText = new TextRenderable(renderer, {
-      id: `project-expand-${renderCounter}-${i}`,
-      content: `${debug && projectIsSelected ? "→ " : ""}${expandIcon} `,
-      fg: "#666666",
-    });
-
-    const projectName = new TextRenderable(renderer, {
-      id: `project-name-${renderCounter}-${i}`,
-      content: project.name,
-      fg: "#eeeeee",
-      flexGrow: 1,
-    });
-
-    // Beads indicator: dashed circle on the right
-    const beadsIndicator = project.beads.enabled
-      ? new TextRenderable(renderer, {
-          id: `project-beads-${renderCounter}-${i}`,
-          content: "◌",
-          fg: "#666666",
-        })
-      : null;
-
-    // Use space-between layout for project header
-    projectHeader.justifyContent = "space-between";
-
-    // Left side: expand icon + name
-    const projectLeft = new BoxRenderable(renderer, {
-      id: `project-left-${renderCounter}-${i}`,
-      flexDirection: "row",
-    });
-    projectLeft.add(expandIconText);
-    projectLeft.add(projectName);
-
-    projectHeader.add(projectLeft);
-    if (beadsIndicator) projectHeader.add(beadsIndicator);
-
-    projectHeader.onMouse = (event: MouseEvent) => {
-      try {
-        if (event.type === "up" && event.button === 0) {
-          event.stopPropagation();
-          if (isExpanded) {
-            expandedProjects.delete(project.path);
-          } else {
-            expandedProjects.add(project.path);
-          }
-          // Use setTimeout to defer re-render until after mouse event completes
-          setTimeout(() => { onUpdate(); }, 0);
-        }
-      } catch {
-        // Ignore mouse handler errors
-      }
-    };
-
-    projectBox.add(projectHeader);
-
-    // Worktrees
-    if (isExpanded) {
-      const worktrees = Object.values(project.worktrees);
-
-      for (let wtIdx = 0; wtIdx < worktrees.length; wtIdx++) {
-        const wt = worktrees[wtIdx];
-        const wtIsSelected = selectedIndex === flatIndex;
-        flatIndex++;
-
-        const wtIsExpanded = expandedWorktrees.has(wt.path);
-
-        // Calculate visible panes (background + active foreground only)
-        const visiblePanes = wt.panes.filter((p) => {
-          if (p.isBackground) return true;
-          return p.paneId === leftPaneId;
-        });
-
-        const wtExpandIcon = visiblePanes.length > 0
-          ? (wtIsExpanded ? "\u{25BC}" : "\u{25B6}")
-          : " ";
-
-        // Check if this worktree is the current active one
-        const isCurrentWorktree = activeWorktreePath !== null && (
-          activeWorktreePath === wt.path ||
-          activeWorktreePath.startsWith(wt.path + "/")
-        );
-
-        // Check for background panes
-        const hasBgPanes = wt.panes.some((p) => p.isBackground);
-
-        // Container for worktree + its panes (no background highlight here)
-        const wtBox = new BoxRenderable(renderer, {
-          id: `worktree-${renderCounter}-${i}-${wtIdx}`,
-          flexDirection: "column",
-          paddingLeft: 1,
-        });
-
-        // Header box for worktree info only (this gets the background highlight)
-        const wtHeaderBox = new BoxRenderable(renderer, {
-          id: `worktree-header-${renderCounter}-${i}-${wtIdx}`,
-          flexDirection: "column",
-          backgroundColor: wtIsSelected ? "#3a3a3a" : undefined,
-        });
-
-        const wtHoverHandlers = createHoverHandlers(wtHeaderBox, renderer, wtIsSelected);
-        wtHeaderBox.onMouseOver = wtHoverHandlers.onMouseOver;
-        wtHeaderBox.onMouseOut = wtHoverHandlers.onMouseOut;
-
-        // Indicator: purple for current, orange for background panes
-        let indicator = "";
-        let indicatorColor = "";
-        if (isCurrentWorktree) {
-          indicator = " \u25CF"; // Big filled circle
-          indicatorColor = "#a855f7"; // Purple
-        } else if (hasBgPanes) {
-          indicator = " \u2022"; // Small bullet
-          indicatorColor = "#f97316"; // Orange
-        }
-
-        const wtNameRow = new BoxRenderable(renderer, {
-          id: `worktree-name-row-${renderCounter}-${i}-${wtIdx}`,
-          flexDirection: "row",
-        });
-
-        const wtExpandText = new TextRenderable(renderer, {
-          id: `worktree-expand-${renderCounter}-${i}-${wtIdx}`,
-          content: `${debug && wtIsSelected ? "→ " : ""}${wtExpandIcon} `,
-          fg: "#666666",
-        });
-
-        const wtName = new TextRenderable(renderer, {
-          id: `worktree-name-${renderCounter}-${i}-${wtIdx}`,
-          content: `⎇ ${basename(wt.path)}`,
-          fg: "#7fd88f",
-        });
-
-        const wtIndicator = indicatorColor
-          ? new TextRenderable(renderer, {
-              id: `worktree-indicator-${renderCounter}-${i}-${wtIdx}`,
-              content: indicator,
-              fg: indicatorColor,
-            })
-          : null;
-
-        // Pane count badge (only visible panes)
-        const paneCountBadge = visiblePanes.length > 0
-          ? new TextRenderable(renderer, {
-              id: `worktree-pane-count-${renderCounter}-${i}-${wtIdx}`,
-              content: ` (${visiblePanes.length})`,
-              fg: "#666666",
-            })
-          : null;
-
-        wtNameRow.add(wtExpandText);
-        wtNameRow.add(wtName);
-        if (wtIndicator) wtNameRow.add(wtIndicator);
-        if (paneCountBadge) wtNameRow.add(paneCountBadge);
-
-        const wtInfo = new TextRenderable(renderer, {
-          id: `worktree-info-${renderCounter}-${i}-${wtIdx}`,
-          content: `     ${wt.branch}`,
-          fg: "#606060",
-          wrapMode: "none",
-        });
-
-        // Click on worktree header = create new pane or toggle expand
-        wtHeaderBox.onMouseDown = (event: Readonly<{ stopPropagation: () => void }>) => {
-          event.stopPropagation();
-          // Toggle expand if has visible panes, otherwise create new pane
-          if (visiblePanes.length > 0) {
-            if (wtIsExpanded) {
-              expandedWorktrees.delete(wt.path);
-            } else {
-              expandedWorktrees.add(wt.path);
-            }
-            // Use setTimeout to defer re-render until after mouse event completes
-            setTimeout(() => { onUpdate(); }, 0);
-          } else {
-            // No visible panes - create a new one
-            createNewPaneForWorktree(wt.path, oakPaneId);
-            setTimeout(() => { onUpdate(); }, 0);
-          }
-        };
-
-        // Add name row and info to header box
-        wtHeaderBox.add(wtNameRow);
-        wtHeaderBox.add(wtInfo);
-        
-        // Add header box to worktree container
-        wtBox.add(wtHeaderBox);
-
-        // Panes (if expanded) - use already computed visiblePanes
-        if (wtIsExpanded && visiblePanes.length > 0) {
-
-          for (let paneIdx = 0; paneIdx < visiblePanes.length; paneIdx++) {
-            const pane = visiblePanes[paneIdx];
-            const paneIsSelected = selectedIndex === flatIndex;
-            flatIndex++;
-
-            const paneBox = new BoxRenderable(renderer, {
-              id: `pane-${renderCounter}-${i}-${wtIdx}-${paneIdx}`,
-              width: "100%",
-              flexDirection: "row",
-              paddingLeft: 3,
-              backgroundColor: paneIsSelected ? "#3a3a3a" : undefined,
-            });
-
-            // Apply hover handlers - use same color as keyboard selection
-            const paneHoverHandlers = createHoverHandlers(paneBox, renderer, paneIsSelected);
-            paneBox.onMouseOver = paneHoverHandlers.onMouseOver;
-            paneBox.onMouseOut = paneHoverHandlers.onMouseOut;
-
-            // Pane icon and status
-            const paneIcon = pane.isBackground ? "◌" : "●";
-            const paneIconColor = pane.isBackground ? "#f97316" : "#a855f7";
-
-            const paneIconText = new TextRenderable(renderer, {
-              id: `pane-icon-${renderCounter}-${i}-${wtIdx}-${paneIdx}`,
-              content: `${debug && paneIsSelected ? "→ " : ""}${paneIcon} `,
-              fg: paneIconColor,
-            });
-
-            // Show current command and location info
-            // Prefer paneTitle if it's meaningful (not the default hostname/username)
-            const paneTitle = pane.paneTitle ?? "";
-            const user = process.env.USER ?? "";
-            const titleLower = paneTitle.toLowerCase();
-            const isDefaultTitle = paneTitle === "" || 
-              titleLower === user.toLowerCase() || 
-              titleLower.includes(user.toLowerCase()) ||
-              titleLower === "bash" || 
-              titleLower === "zsh";
-            const paneCommand = isDefaultTitle ? pane.currentCommand : paneTitle;
-            const paneLabel = pane.isBackground
-              ? `${pane.sessionName}:${pane.windowId}`
-              : "active";
-
-            const paneText = new TextRenderable(renderer, {
-              id: `pane-text-${renderCounter}-${i}-${wtIdx}-${paneIdx}`,
-              content: `${paneCommand} ${pane.paneId} (${paneLabel})`,
-              fg: "#a0a0a0",
-            });
-
-            // Click on pane behavior:
-            // - If only one pane visible: no-op
-            // - If multiple panes visible: send to background (if foreground) or bring to front (if background)
-            paneBox.onMouseDown = (event: Readonly<{ stopPropagation: () => void }>) => {
-              event.stopPropagation();
-              
-              // Count visible foreground panes
-              const visiblePanes = getVisibleForegroundPanes(oakPaneId);
-              
-              if (pane.isBackground) {
-                // Background pane: bring to foreground (regardless of count)
-                bringPaneToForeground(pane.paneId, oakPaneId);
-                // Use setTimeout to defer re-render until after mouse event completes
-                setTimeout(() => { onUpdate(); }, 0);
-              } else {
-                // Foreground pane: only send to background if multiple panes visible
-                if (visiblePanes.length > 1) {
-                  sendPaneToBackground(pane.paneId);
-                  // Use setTimeout to defer re-render until after mouse event completes
-                  setTimeout(() => { onUpdate(); }, 0);
-                }
-                // If only one pane visible, do nothing (no-op)
-              }
-            };
-
-            paneBox.add(paneIconText);
-            paneBox.add(paneText);
-            wtBox.add(paneBox);
-          }
-        }
-
         projectBox.add(wtBox);
       }
     }
@@ -1072,24 +605,7 @@ export function renderFiles(
   onToggleFolder: (path: string) => void,
   selectedIndex: number = -1,
   debug: boolean = false,
-  rootPath?: string,
 ): void {
-  // Show root path at the top in muted color
-  if (rootPath != null && rootPath !== "") {
-    const rootPathBox = new BoxRenderable(renderer, {
-      id: `files-root-path-box-${renderCounter}`,
-      width: "100%",
-      paddingBottom: 1,
-    });
-    const rootPathText = new TextRenderable(renderer, {
-      id: `files-root-path-${renderCounter}`,
-      content: rootPath,
-      fg: "#666666",
-    });
-    rootPathBox.add(rootPathText);
-    contentScroll.add(rootPathBox);
-  }
-
   const filteredTree = searchQuery
     ? filterFileTree(fileTree, searchQuery)
     : fileTree.map(toMutableNode);

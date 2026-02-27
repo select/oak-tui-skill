@@ -8,6 +8,8 @@ import {
   type MouseEvent,
 } from "@opentui/core";
 import type { BeadsIssue, Theme, ReadonlyBeadsIssue } from "../lib/types";
+import type { ModalComponents } from "./modal";
+import { clearModalContent, showModal, hideModal } from "./modal";
 import {
   getTypeColor,
   getPriorityLabel,
@@ -64,21 +66,55 @@ function formatDate(dateStr: string): string {
 }
 
 /**
- * Renders issue details directly into the parent container.
- * This replaces the board content when the popup is visible.
+ * Renders issue details into the modal container.
+ * Uses the modal system for overlay and centering.
+ *
+ * @param renderer - The CLI renderer
+ * @param modal - Modal components from the UI system
+ * @param state - Issue popup state
+ * @param theme - Current theme
+ * @param renderCounter - Unique render counter for IDs
+ * @param onClose - Callback when modal is closed
  */
 export function renderIssuePopup(
   renderer: Readonly<CliRenderer>,
-  parent: Readonly<BoxRenderable>,
+  modal: ModalComponents,
   state: Readonly<IssuePopupState>,
   theme: Readonly<Theme>,
   renderCounter: number,
   onClose?: () => void,
 ): void {
-  if (!state.visible || !state.issue) return;
+  if (!state.visible || !state.issue) {
+    hideModal(modal);
+    return;
+  }
 
   const issue = state.issue;
   const typeColor = getTypeColor(issue.issue_type);
+
+  // Clear previous modal content
+  clearModalContent(modal);
+
+  // Configure modal container styling - use percentage for responsive width
+  modal.container.width = "90%";
+  modal.container.maxWidth = 70;
+  modal.container.maxHeight = "80%";
+  modal.container.borderColor = theme.colors.border;
+  modal.container.paddingTop = 1;
+  modal.container.paddingBottom = 1;
+  modal.container.paddingLeft = 2;
+  modal.container.paddingRight = 2;
+
+  // Set up click-outside-to-close behavior
+  modal.overlay.onMouseDown = (e) => {
+    e.stopPropagation();
+    if (onClose) {
+      debugLog("Overlay clicked, closing modal");
+      setTimeout(() => { onClose(); }, 0);
+    }
+  };
+
+  const container = modal.container;
 
   // Header row with content on left and close button on right
   const headerRow = new BoxRenderable(renderer, {
@@ -88,7 +124,7 @@ export function renderIssuePopup(
     justifyContent: "space-between",
     alignItems: "center",
   });
-  parent.add(headerRow);
+  container.add(headerRow);
 
   // Left side: type indicator + ID
   const headerLeft = new BoxRenderable(renderer, {
@@ -149,15 +185,15 @@ export function renderIssuePopup(
     content: issue.title,
     fg: theme.colors.text,
   });
-  parent.add(titleText);
+  container.add(titleText);
 
   // Separator
   const sep1 = new TextRenderable(renderer, {
     id: `popup-sep1-${renderCounter}`,
-    content: "─".repeat(60),
+    content: "─".repeat(64),
     fg: theme.colors.border,
   });
-  parent.add(sep1);
+  container.add(sep1);
 
   // Metadata line
   const metaLine = new TextRenderable(renderer, {
@@ -165,7 +201,7 @@ export function renderIssuePopup(
     content: `Status: ${getStatusLabel(issue.status)}  │  Priority: ${getPriorityLabel(issue.priority)}  │  Type: ${capitalize(issue.issue_type)}${issue.assignee != null ? `  │  Assignee: ${issue.assignee}` : ""}`,
     fg: theme.colors.text,
   });
-  parent.add(metaLine);
+  container.add(metaLine);
 
   // Empty line
   const spacer1 = new TextRenderable(renderer, {
@@ -173,7 +209,7 @@ export function renderIssuePopup(
     content: " ",
     fg: theme.colors.text,
   });
-  parent.add(spacer1);
+  container.add(spacer1);
 
   // Description section
   if (issue.description != null && issue.description !== "") {
@@ -182,7 +218,7 @@ export function renderIssuePopup(
       content: "Description",
       fg: theme.colors.primary,
     });
-    parent.add(descLabel);
+    container.add(descLabel);
 
     // Use MarkdownRenderable for formatted description with dimmed text
     const dimmedTextColor = RGBA.fromHex(theme.colors.textMuted);
@@ -206,7 +242,7 @@ export function renderIssuePopup(
       syntaxStyle: syntaxStyle,
       conceal: true,
     });
-    parent.add(descMarkdown);
+    container.add(descMarkdown);
 
     // Spacer
     const spacer2 = new TextRenderable(renderer, {
@@ -214,7 +250,7 @@ export function renderIssuePopup(
       content: " ",
       fg: theme.colors.text,
     });
-    parent.add(spacer2);
+    container.add(spacer2);
   }
 
   // Dependencies section
@@ -224,7 +260,7 @@ export function renderIssuePopup(
       content: "Dependencies",
       fg: theme.colors.primary,
     });
-    parent.add(depsLabel);
+    container.add(depsLabel);
 
     if (issue.dependency_count > 0) {
       const blockedByText = new TextRenderable(renderer, {
@@ -232,7 +268,7 @@ export function renderIssuePopup(
         content: `  Blocked by: ${issue.dependency_count} issue(s)`,
         fg: theme.colors.warning,
       });
-      parent.add(blockedByText);
+      container.add(blockedByText);
     }
 
     if (issue.dependent_count > 0) {
@@ -241,7 +277,7 @@ export function renderIssuePopup(
         content: `  Blocks: ${issue.dependent_count} issue(s)`,
         fg: theme.colors.info,
       });
-      parent.add(blocksText);
+      container.add(blocksText);
     }
 
     // Spacer
@@ -250,7 +286,7 @@ export function renderIssuePopup(
       content: " ",
       fg: theme.colors.text,
     });
-    parent.add(spacer3);
+    container.add(spacer3);
   }
 
   // Labels section
@@ -260,14 +296,14 @@ export function renderIssuePopup(
       content: "Labels",
       fg: theme.colors.primary,
     });
-    parent.add(labelsLabel);
+    container.add(labelsLabel);
 
     const labelsText = new TextRenderable(renderer, {
       id: `popup-labels-text-${renderCounter}`,
       content: `  ${issue.labels.join(", ")}`,
       fg: theme.colors.text,
     });
-    parent.add(labelsText);
+    container.add(labelsText);
 
     // Spacer
     const spacer4 = new TextRenderable(renderer, {
@@ -275,16 +311,16 @@ export function renderIssuePopup(
       content: " ",
       fg: theme.colors.text,
     });
-    parent.add(spacer4);
+    container.add(spacer4);
   }
 
   // Separator
   const sep2 = new TextRenderable(renderer, {
     id: `popup-sep2-${renderCounter}`,
-    content: "─".repeat(60),
+    content: "─".repeat(64),
     fg: theme.colors.border,
   });
-  parent.add(sep2);
+  container.add(sep2);
 
   // Timestamps
   const timestampsText = new TextRenderable(renderer, {
@@ -292,7 +328,7 @@ export function renderIssuePopup(
     content: `Created: ${formatDate(issue.created_at)}  │  Updated: ${formatDate(issue.updated_at)}`,
     fg: theme.colors.textMuted,
   });
-  parent.add(timestampsText);
+  container.add(timestampsText);
 
   // Footer hint
   const footerHint = new TextRenderable(renderer, {
@@ -300,5 +336,8 @@ export function renderIssuePopup(
     content: "Press Escape to close",
     fg: theme.colors.textMuted,
   });
-  parent.add(footerHint);
+  container.add(footerHint);
+
+  // Show the modal
+  showModal(modal);
 }
